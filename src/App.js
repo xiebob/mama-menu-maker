@@ -40,7 +40,11 @@ const MealPlannerChat = () => {
     setLoading(true);
 
     try {
-      const recipesContext = recipes.map(r => 
+// Shuffle recipes so different ones appear first
+const shuffledRecipes = [...recipes].sort(() => Math.random() - 0.5);
+console.log('Sending', shuffledRecipes.length, 'recipes to AI prompt');
+
+const recipesContext = shuffledRecipes.map(r => 
         `- ${r.name}: ${r.ingredients.join(', ')} (${r.totalTime}m total, ${r.notes})`
       ).join('\n');
 
