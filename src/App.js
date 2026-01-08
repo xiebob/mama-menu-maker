@@ -5,7 +5,7 @@ const MealPlannerChat = () => {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: 'Hi! I\'m your meal planning assistant. I can help you plan meals from your recipe collection, create shopping lists, and generate a calendar. What would you like to do today?'
+      content: 'Hi! I\'m Mama\'s Menu Maker. I\'m ready to plan your dinners! Are there any ingredients you want to use up, or anything else I should know? If not, just ask me to plan 3 meals and we\'ll get started!'
     }
   ]);
   const [input, setInput] = useState('');
@@ -31,78 +31,101 @@ const MealPlannerChat = () => {
   }, [messages]);
 
   const sendMessage = async (e) => {
-  e.preventDefault();
-  if (!input.trim()) return;
+    e.preventDefault();
+    if (!input.trim()) return;
 
-  const userMessage = input;
-  setInput('');
-  setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-  setLoading(true);
+    const userMessage = input;
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setLoading(true);
 
-  try {
-    const recipesContext = recipes.map(r => 
-      `- ${r.name}: ${r.ingredients.join(', ')} (${r.totalTime}m total, ${r.notes})`
-    ).join('\n');
+    try {
+      const recipesContext = recipes.map(r => 
+        `- ${r.name}: ${r.ingredients.join(', ')} (${r.totalTime}m total, ${r.notes})`
+      ).join('\n');
 
-    const systemPrompt = `You are a meal planning assistant. Your job is to help plan meals based on the user's preferences and available recipes.
+      const systemPrompt = `You are a meal planning assistant specializing in dinner meals.
 
 Here are all available recipes:
 ${recipesContext}
 
 Your responsibilities:
-1. Suggest meals that include a protein and vegetable (or a side dish)
-2. Typically plan 3 meals per week unless asked otherwise
-3. Always tell the user which recipes you're suggesting
-4. Let them approve, swap, or request modifications
-5. Ask about any ingredients they want to use up
-6. When they're ready, help create a shopping list and calendar file
-7. When generating meals, format them clearly with recipe names and any special shopping notes
+1. ONLY suggest DINNER meals (breakfast and lunch are not needed)
+2. Plan 3 dinner meals per week
+3. Ensure NO MORE THAN 2 meals contain meat (vary with vegetarian options)
+4. Each meal should include a protein and vegetable (or a side dish)
+5. If a recipe needs a side, suggest something VERY BASIC that doesn't require a recipe - like: grilled chicken breast, roasted asparagus, steamed broccoli, plain rice, simple salad, etc.
+6. Always tell the user which recipes you're suggesting
+7. When suggesting meals, CLEARLY LIST the non-stock ingredients needed for each recipe as BULLET POINTS (exclude common pantry items like: salt, pepper, oil, butter, water, garlic, onion, vinegar, soy sauce, sugar, flour, eggs, milk, cheese)
+8. For each meal suggested, format like this:
+   - Recipe name: [name]
+   - Cooking time: X min
+   - To buy:
+     • ingredient 1
+     • ingredient 2
+     • ingredient 3
+9. Let them approve, swap, or request modifications
+10. Ask about any ingredients they want to use up
+11. When they're ready, help create a shopping list and calendar file
 
 Be conversational and helpful. Ask clarifying questions if needed.`;
 
-    const response = await fetch('http://localhost:3001/api/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        messages: messages.map(msg => ({
-          role: msg.role,
-          content: msg.content
-        })).concat([{
-          role: 'user',
-          content: userMessage
-        }]),
-        systemPrompt: systemPrompt
-      })
-    });
+      const response = await fetch('http://localhost:3001/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: messages.map(msg => ({
+            role: msg.role,
+            content: msg.content
+          })).concat([{
+            role: 'user',
+            content: userMessage
+          }]),
+          systemPrompt: systemPrompt
+        })
+      });
 
-    const data = await response.json();
-    
-    if (data.error) {
-      throw new Error(data.error.message);
-    }
-
-    const assistantMessage = data.content[0].text;
-    setMessages(prev => [...prev, { role: 'assistant', content: assistantMessage }]);
-
-    if (userMessage.toLowerCase().includes('yes') || userMessage.toLowerCase().includes('approve')) {
-      const mealMatches = assistantMessage.match(/(?:for meal|suggest|try|how about).*?([A-Z][^.!?]*)/g);
-      if (mealMatches) {
-        const mealNames = mealMatches.map(m => m.replace(/(?:for meal|suggest|try|how about)/, '').trim());
-        setSelectedMeals(mealNames);
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error.message);
       }
+
+      const assistantMessage = data.content[0].text;
+
+      // Auto-inject correct recipe URLs by matching recipe names in the message
+      let enhancedMessage = assistantMessage;
+      recipes.forEach(recipe => {
+        const recipeName = recipe.name;
+        if (enhancedMessage.includes(`Recipe name: ${recipeName}`)) {
+          // Find "Recipe name: XXX" and add the URL after it
+          const pattern = `Recipe name: ${recipeName}`;
+          const replacement = `Recipe name: ${recipeName}\n- Recipe link: ${recipe.url}`;
+          enhancedMessage = enhancedMessage.replace(pattern, replacement);
+        }
+      });
+
+      setMessages(prev => [...prev, { role: 'assistant', content: enhancedMessage }]);
+
+      if (userMessage.toLowerCase().includes('yes') || userMessage.toLowerCase().includes('approve')) {
+        const mealMatches = assistantMessage.match(/Recipe name: ([^(\n]+)/g);
+        if (mealMatches) {
+          const mealNames = mealMatches.map(m => m.replace('Recipe name: ', '').trim());
+          setSelectedMeals(mealNames);
+        }
+      }
+    } catch (error) {
+      console.error('API Error:', error);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `Sorry, I encountered an error: ${error.message}. Make sure the backend is running on port 3001.`
+      }]);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('API Error:', error);
-    setMessages(prev => [...prev, {
-      role: 'assistant',
-      content: `Sorry, I encountered an error: ${error.message}. Make sure the backend is running on port 3001.`
-    }]);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const downloadCalendar = () => {
     const selectedRecipes = recipes.filter(r => 
@@ -146,10 +169,10 @@ Be conversational and helpful. Ask clarifying questions if needed.`;
       <div className="app-header">
         <div className="header-content">
           <div className="header-title">
-            <span className="header-icon">🍽️</span>
+            <img src="/mamas_menu_maker_icon.png" alt="Mama's Menu Maker" style={{width: 40, height: 40}} />
             <div>
-              <h1>Meal Planner</h1>
-              <p>Chat with Claude to plan your meals</p>
+              <h1>Mama's Menu Maker</h1>
+              <p>AI dinner planning made easy</p>
             </div>
           </div>
         </div>
@@ -160,7 +183,14 @@ Be conversational and helpful. Ask clarifying questions if needed.`;
           {messages.map((msg, i) => (
             <div key={i} className={`message message-${msg.role}`}>
               <div className="message-bubble">
-                {msg.content}
+                {msg.role === 'assistant' ? (
+                  <div dangerouslySetInnerHTML={{
+                    __html: msg.content
+                      .replace(/https?:\/\/[^\s)]+/g, url => `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: underline;">${url}</a>`)
+                  }} />
+                ) : (
+                  msg.content
+                )}
               </div>
             </div>
           ))}
@@ -199,14 +229,15 @@ Be conversational and helpful. Ask clarifying questions if needed.`;
             </button>
           </form>
           
-{selectedMeals.length > 0 && (
-  <button
-    onClick={downloadCalendar}
-    className="download-button"
-  >
-    📥 Download Calendar (ICS)
-  </button>
-)}        </div>
+          {selectedMeals.length > 0 && (
+            <button
+              onClick={downloadCalendar}
+              className="download-button"
+            >
+              📥 Download Calendar (ICS)
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
