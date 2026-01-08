@@ -44,7 +44,7 @@ const MealPlannerChat = () => {
         `- ${r.name}: ${r.ingredients.join(', ')} (${r.totalTime}m total, ${r.notes})`
       ).join('\n');
 
-      const systemPrompt = `You are a meal planning assistant specializing in dinner meals.
+const systemPrompt = `You are a meal planning assistant specializing in dinner meals.
 
 Here are all available recipes:
 ${recipesContext}
@@ -57,19 +57,24 @@ INSTRUCTIONS - READ CAREFULLY:
 
 Your responsibilities:
 1. Plan 3 dinner meals per week
-2. For EACH meal, pick ONE recipe from the list
-3. NO MORE than 2 meals contain meat
-4. If recipe lacks protein/vegetable, add ONE simple side: grilled chicken, roasted asparagus, steamed broccoli, rice, salad
-5. List non-stock ingredients as BULLET POINTS (exclude: salt, pepper, oil, butter, water, garlic, onion, vinegar, soy sauce, sugar, flour, eggs, milk, cheese)
-6. Format:
+2. For EACH meal, pick ONE recipe from the list. Make sure it is a meal that is appropriate to dinner (e.g. not dessert).
+3. NO MORE than 2 meals per week contain meat (e.g. beef, pork, lamb, chicken, fish). 
+At least 1 meal must be vegetarian.
+4. Optionally suggest a side if the main meal is lacking in protein or veggies or grain. 
+If the recipe has PROTEIN (meat/fish/beans) but no vegetables, add a VEGETABLE side only (asparagus, broccoli, salad, etc). 
+If it lacks protein, add a very simple PROTEIN side (grilled chicken, etc). 
+5. If you suggest a side dish, INCLUDE those ingredients in the "To buy" list
+6. List non-stock ingredients as BULLET POINTS (exclude: salt, pepper, oil, butter, water, garlic, onion, vinegar, soy sauce, sugar, flour, eggs, milk, cheese)
+7. Format:
    - Recipe name: [SINGLE RECIPE NAME]
    - Cooking time: X min
    - Side: [if needed]
    - To buy:
      • ingredient 1
      • ingredient 2
+     • [side ingredients if applicable]
 
-You can add an icon for each night if you want (e.g., 🍝, 🥗, 🍲, etc.)
+You can add an icon for each meal if you want (e.g., 🍝, 🥗, 🍲, etc.)
 Be helpful and friendly.`;
 
       const response = await fetch('http://localhost:3001/api/chat', {
