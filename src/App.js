@@ -19,8 +19,16 @@ const MealPlannerChat = () => {
     fetch('/recipes.json')
       .then(res => res.json())
       .then(data => {
-        setRecipes(data);
-        console.log('Loaded', data.length, 'recipes');
+        // Add unique IDs to recipes if they don't have them
+        const recipesWithIds = data.map(recipe => ({
+          ...recipe,
+          id: recipe.id || recipe.name.toLowerCase()
+            .replace(/[^a-z0-9\s]/g, '') // Remove special chars
+            .replace(/\s+/g, '-') // Replace spaces with hyphens
+            .trim()
+        }));
+        setRecipes(recipesWithIds);
+        console.log('Loaded', recipesWithIds.length, 'recipes with IDs');
       })
       .catch(err => console.error('Error loading recipes:', err));
   }, []);
@@ -45,19 +53,25 @@ const shuffledRecipes = [...recipes].sort(() => Math.random() - 0.5);
 console.log('Sending', shuffledRecipes.length, 'recipes to AI prompt');
 
 const recipesContext = shuffledRecipes.map(r => 
-  `- ${r.name}: ${r.ingredients.join(', ')} (${r.totalTime}m total, ${r.notes})`
+  `ID: ${r.id} | ${r.name}: ${r.ingredients.join(', ')} (${r.totalTime}m total, ${r.notes})`
 ).join('\n');
 
 const systemPrompt = `You are a meal planning assistant specializing in DINNER meals only.
+
+⚠️  CRITICAL SHOPPING LIST RULE - READ FIRST ⚠️
+NEVER include these STOCK INGREDIENTS in "To buy" lists:
+❌ salt, pepper, oil, olive oil, butter, water, garlic, onion, vinegar, soy sauce, sugar, brown sugar, flour, eggs, milk, spices (cumin, paprika, etc.), vanilla, baking powder, baking soda
+
+✅ ONLY include SPECIFIC INGREDIENTS like: chicken breast, bell peppers, broccoli, pasta, cheese, tomatoes, etc.
 
 Here are all available recipes:
 ${recipesContext}
 
 INSTRUCTIONS - READ CAREFULLY:
-- Each meal = EXACTLY ONE recipe from the list
+- Each meal = EXACTLY ONE recipe from the list (reference by ID)
 - Do NOT suggest desserts, breakfasts, or side dishes as main meals
 - Do NOT suggest multiple recipes per meal
-- Each meal has: ONE recipe name, cooking time, and shopping list
+- Each meal has: ONE one recipe ID, recipe name, cooking time, and shopping list
 
 Your responsibilities:
 1. Plan 3 DINNER meals per week ONLY (exclude: desserts, breakfasts, appetizers)
@@ -75,9 +89,10 @@ Your responsibilities:
 7. List non-stock ingredients as BULLET POINTS
    - For the "To buy" list, ONLY include non-stock ingredients. 
    - REMOVE and DO NOT LIST common stock items even if they appear in the recipe, such as salt, pepper, oil, butter, water, garlic, onion, vinegar, soy sauce, sugar, flour, eggs, milk, spices)
-8. Format:
+8. Format to report to user:
    MEAL [number]
    - Recipe name: [SINGLE RECIPE NAME]
+   - Recipe ID: [exact ID from list]
    - Cooking time: X min
    - Side: [only if needed - simple item, not a full recipe]
    - To buy:
@@ -113,23 +128,33 @@ Be helpful and friendly.`;
 
       const assistantMessage = data.content[0].text;
 
-      // Auto-inject correct recipe URLs by matching recipe names in the message
-let enhancedMessage = assistantMessage;
-recipes.forEach(recipe => {
-  const recipeName = recipe.name;
-  if (enhancedMessage.includes(`Recipe name: ${recipeName}`)) {
-    const pattern = `Recipe name: ${recipeName}`;
-    const replacement = `Recipe name: ${recipeName}\n- Recipe link: <a href="${recipe.url}" target="_blank" style="color: #2E5FF3; text-decoration: underline;">${recipe.url}</a>`;
-    enhancedMessage = enhancedMessage.replace(pattern, replacement);
-  }
-});
+      // Auto-inject recipe URLs and names by matching recipe IDs in the message
+      let enhancedMessage = assistantMessage;
+
+      // Look for "Recipe ID: [id]" pattern and inject full recipe info
+      recipes.forEach(recipe => {
+        const recipeIdPattern = `Recipe ID: ${recipe.id}`;
+        if (enhancedMessage.includes(recipeIdPattern)) {
+          const replacement = `Recipe ID: ${recipe.id}
+- Recipe name: **${recipe.name}**
+- Recipe link: <a href="${recipe.url}" target="_blank" style="color: #2E5FF3; text-decoration: underline;">${recipe.url}</a>`;
+          enhancedMessage = enhancedMessage.replace(recipeIdPattern, replacement);
+        }
+      });
       setMessages(prev => [...prev, { role: 'assistant', content: enhancedMessage }]);
 
       if (userMessage.toLowerCase().includes('yes') || userMessage.toLowerCase().includes('approve')) {
-        const mealMatches = assistantMessage.match(/Recipe name: ([^(\n]+)/g);
-        if (mealMatches) {
-          const mealNames = mealMatches.map(m => m.replace('Recipe name: ', '').trim());
-          setSelectedMeals(mealNames);
+        // Extract recipe IDs from the AI's response
+        const recipeIdMatches = assistantMessage.match(/Recipe ID: ([^\n\s]+)/g);
+        if (recipeIdMatches) {
+          const selectedRecipeIds = recipeIdMatches.map(m => m.replace('Recipe ID: ', '').trim());
+          // Convert IDs back to recipe names for calendar generation
+          const selectedRecipeNames = selectedRecipeIds.map(id => {
+            const recipe = recipes.find(r => r.id === id);
+            return recipe ? recipe.name : id;
+          }).filter(name => name);
+          setSelectedMeals(selectedRecipeNames);
+          console.log('Selected meals:', selectedRecipeNames);
         }
       }
     } catch (error) {
@@ -202,7 +227,8 @@ recipes.forEach(recipe => {
 {msg.role === 'assistant' ? (
   <div dangerouslySetInnerHTML={{
     __html: msg.content
-      .replace(/Recipe name:\s*([^\n]+)/g, 'Recipe name: <strong>$1</strong>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>') // Convert **text** to <strong>
+      .replace(/Recipe ID: ([^\n\s]+)/g, 'Recipe ID: <code>$1</code>') // Style recipe IDs
   }} />
 ) : (
   msg.content
