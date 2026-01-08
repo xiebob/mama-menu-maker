@@ -45,8 +45,8 @@ const shuffledRecipes = [...recipes].sort(() => Math.random() - 0.5);
 console.log('Sending', shuffledRecipes.length, 'recipes to AI prompt');
 
 const recipesContext = shuffledRecipes.map(r => 
-        `- ${r.name}: ${r.ingredients.join(', ')} (${r.totalTime}m total, ${r.notes})`
-      ).join('\n');
+  `- ${r.name}: ${r.ingredients.join(', ')} (${r.totalTime}m total, ${r.notes})`
+).join('\n');
 
 const systemPrompt = `You are a meal planning assistant specializing in DINNER meals only.
 
@@ -76,6 +76,7 @@ Your responsibilities:
    - For the "To buy" list, ONLY include non-stock ingredients. 
    - REMOVE and DO NOT LIST common stock items even if they appear in the recipe, such as salt, pepper, oil, butter, water, garlic, onion, vinegar, soy sauce, sugar, flour, eggs, milk, spices)
 8. Format:
+   MEAL [number]
    - Recipe name: [SINGLE RECIPE NAME]
    - Cooking time: X min
    - Side: [only if needed - simple item, not a full recipe]
