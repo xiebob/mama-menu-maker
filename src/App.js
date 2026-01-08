@@ -5,7 +5,7 @@ const MealPlannerChat = () => {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: 'Hi! I\'m Mama\'s Menu Maker. I\'m ready to plan your dinners! Are there any ingredients you want to use up, or anything else I should know? If not, just ask me to plan 3 meals and we\'ll get started!'
+      content: 'Hi! I\'m Mama\'s Menu Maker. I\'m ready to plan your dinners! Are there any ingredients you want to use up?'
     }
   ]);
   const [input, setInput] = useState('');
@@ -49,26 +49,28 @@ const MealPlannerChat = () => {
 Here are all available recipes:
 ${recipesContext}
 
+INSTRUCTIONS - READ CAREFULLY:
+- Each meal = EXACTLY ONE recipe from the list
+- Do NOT suggest multiple recipes per meal
+- Do NOT suggest Recipe 1, Recipe 2, Recipe 3
+- Each meal has: ONE recipe name, cooking time, and shopping list
+
 Your responsibilities:
-1. ONLY suggest DINNER meals (breakfast and lunch are not needed)
-2. Plan 3 dinner meals per week
-3. Ensure NO MORE THAN 2 meals contain meat (vary with vegetarian options)
-4. Each meal should include a protein and vegetable (or a side dish)
-5. If a recipe needs a side, suggest something VERY BASIC that doesn't require a recipe - like: grilled chicken breast, roasted asparagus, steamed broccoli, plain rice, simple salad, etc.
-6. Always tell the user which recipes you're suggesting
-7. When suggesting meals, CLEARLY LIST the non-stock ingredients needed for each recipe as BULLET POINTS (exclude common pantry items like: salt, pepper, oil, butter, water, garlic, onion, vinegar, soy sauce, sugar, flour, eggs, milk, cheese)
-8. For each meal suggested, format like this:
-   - Recipe name: [name]
+1. Plan 3 dinner meals per week
+2. For EACH meal, pick ONE recipe from the list
+3. NO MORE than 2 meals contain meat
+4. If recipe lacks protein/vegetable, add ONE simple side: grilled chicken, roasted asparagus, steamed broccoli, rice, salad
+5. List non-stock ingredients as BULLET POINTS (exclude: salt, pepper, oil, butter, water, garlic, onion, vinegar, soy sauce, sugar, flour, eggs, milk, cheese)
+6. Format:
+   - Recipe name: [SINGLE RECIPE NAME]
    - Cooking time: X min
+   - Side: [if needed]
    - To buy:
      • ingredient 1
      • ingredient 2
-     • ingredient 3
-9. Let them approve, swap, or request modifications
-10. Ask about any ingredients they want to use up
-11. When they're ready, help create a shopping list and calendar file
 
-Be conversational and helpful. Ask clarifying questions if needed.`;
+You can add an icon for each night if you want (e.g., 🍝, 🥗, 🍲, etc.)
+Be helpful and friendly.`;
 
       const response = await fetch('http://localhost:3001/api/chat', {
         method: 'POST',
@@ -96,17 +98,15 @@ Be conversational and helpful. Ask clarifying questions if needed.`;
       const assistantMessage = data.content[0].text;
 
       // Auto-inject correct recipe URLs by matching recipe names in the message
-      let enhancedMessage = assistantMessage;
-      recipes.forEach(recipe => {
-        const recipeName = recipe.name;
-        if (enhancedMessage.includes(`Recipe name: ${recipeName}`)) {
-          // Find "Recipe name: XXX" and add the URL after it
-          const pattern = `Recipe name: ${recipeName}`;
-          const replacement = `Recipe name: ${recipeName}\n- Recipe link: ${recipe.url}`;
-          enhancedMessage = enhancedMessage.replace(pattern, replacement);
-        }
-      });
-
+let enhancedMessage = assistantMessage;
+recipes.forEach(recipe => {
+  const recipeName = recipe.name;
+  if (enhancedMessage.includes(`Recipe name: ${recipeName}`)) {
+    const pattern = `Recipe name: ${recipeName}`;
+    const replacement = `Recipe name: ${recipeName}\n- Recipe link: <a href="${recipe.url}" target="_blank" style="color: #2E5FF3; text-decoration: underline;">${recipe.url}</a>`;
+    enhancedMessage = enhancedMessage.replace(pattern, replacement);
+  }
+});
       setMessages(prev => [...prev, { role: 'assistant', content: enhancedMessage }]);
 
       if (userMessage.toLowerCase().includes('yes') || userMessage.toLowerCase().includes('approve')) {
@@ -183,14 +183,14 @@ Be conversational and helpful. Ask clarifying questions if needed.`;
           {messages.map((msg, i) => (
             <div key={i} className={`message message-${msg.role}`}>
               <div className="message-bubble">
-                {msg.role === 'assistant' ? (
-                  <div dangerouslySetInnerHTML={{
-                    __html: msg.content
-                      .replace(/https?:\/\/[^\s)]+/g, url => `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: underline;">${url}</a>`)
-                  }} />
-                ) : (
-                  msg.content
-                )}
+{msg.role === 'assistant' ? (
+  <div dangerouslySetInnerHTML={{
+    __html: msg.content
+      .replace(/Recipe name:\s*([^\n]+)/g, 'Recipe name: <strong>$1</strong>')
+  }} />
+) : (
+  msg.content
+)}
               </div>
             </div>
           ))}
@@ -216,7 +216,7 @@ Be conversational and helpful. Ask clarifying questions if needed.`;
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="What meals would you like to plan?"
+              placeholder="Type your message..."
               disabled={loading}
               className="message-input"
             />
