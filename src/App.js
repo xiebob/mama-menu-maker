@@ -24,11 +24,11 @@ const MealPlannerChat = () => {
           ...recipe,
           id: recipe.id || recipe.name.toLowerCase()
             .replace(/[^a-z0-9\s]/g, '') // Remove special chars
-            .replace(/\s+/g, '-') // Replace spaces with hyphens
+            .replace(/\s+/g, '_') // Use underscores to match AI output
             .trim()
         }));
         setRecipes(recipesWithIds);
-        console.log('Loaded', recipesWithIds.length, 'recipes with IDs');
+        console.log('✅ Loaded', recipesWithIds.length, 'recipes with IDs:', recipesWithIds.slice(0, 3).map(r => `${r.name} -> ${r.id}`));
       })
       .catch(err => console.error('Error loading recipes:', err));
   }, []);
@@ -56,13 +56,27 @@ const recipesContext = shuffledRecipes.map(r =>
   `ID: ${r.id} | ${r.name}: ${r.ingredients.join(', ')} (${r.totalTime}m total, ${r.notes})`
 ).join('\n');
 
-const systemPrompt = `You are a meal planning assistant specializing in DINNER meals only.
+const systemPrompt = `You are a meal planning assistant. 
 
-⚠️  CRITICAL SHOPPING LIST RULE - READ FIRST ⚠️
-NEVER include these STOCK INGREDIENTS in "To buy" lists:
-❌ salt, pepper, oil, olive oil, butter, water, garlic, onion, vinegar, soy sauce, sugar, brown sugar, flour, eggs, milk, spices (cumin, paprika, etc.), vanilla, baking powder, baking soda
+🧠 CONVERSATION CONTEXT:
+- If this is the first message, create a new 3-meal plan
+- If I'm giving feedback on an existing plan, MODIFY that plan (don't start over!)
+- Examples of feedback: "swap meal 2", "replace the lasagna", "add more protein to meal 1"
+- When modifying, keep the meals I didn't ask to change
 
-✅ ONLY include SPECIFIC INGREDIENTS like: chicken breast, bell peppers, broccoli, pasta, cheese, tomatoes, etc.
+🍽️ COMPLETE MEAL RULES:
+Every dinner must have ALL THREE components:
+- PROTEIN (e.g. meat, tofu, beans, eggs, cheese)
+- VEGETABLES (fresh, cooked, roasted, or salad)  
+- CARBS (e.g. rice, pasta, bread, potatoes, grains)
+
+If a recipe is missing components, ADD simple items to complete it:
+
+EXAMPLES:
+- "Basic Chard" (just vegetables) → Add "grilled chicken breast" + "rice"
+- "Tabouleh" (just grain) → Add "grilled chicken breast" 
+- "Stir-fry" → Add "jasmine rice"
+- "Pasta" dish → Add "green salad" if no vegetables
 
 Here are all available recipes:
 ${recipesContext}
@@ -90,18 +104,14 @@ Your responsibilities:
    - For the "To buy" list, ONLY include non-stock ingredients. 
    - REMOVE and DO NOT LIST common stock items even if they appear in the recipe, such as salt, pepper, oil, butter, water, garlic, onion, vinegar, soy sauce, sugar, flour, eggs, milk, spices)
 8. Format to report to user:
-   MEAL [number]
-   - Recipe name: [SINGLE RECIPE NAME]
-   - Recipe ID: [exact ID from list]
-   - Cooking time: X min
-   - Side: [only if needed - simple item, not a full recipe]
-   - To buy:
-     • ingredient 1
-     • ingredient 2
-     • [side ingredients if applicable]
+MEAL [number]
+- Recipe ID: [exact ID]
+- Cooking time: X min
+- Add to complete meal: [rice, chicken breast, etc. - only if needed]
+- Needed ingredients:
+  • [ingredients for recipe AND ingredients for any suggested added components]
 
-You can add an icon for each meal if you want (e.g., 🍝, 🥗, 🍲, etc.)
-Be helpful and friendly.`;
+Focus on making every meal satisfying and complete!`;
 
       const response = await fetch('http://localhost:3001/api/chat', {
         method: 'POST',
@@ -131,17 +141,19 @@ Be helpful and friendly.`;
       // Auto-inject recipe URLs and names by matching recipe IDs in the message
       let enhancedMessage = assistantMessage;
 
-      // Look for "Recipe ID: [id]" pattern and inject full recipe info
+      // Look for "Recipe ID: [id]" pattern and replace with user-friendly format
       recipes.forEach(recipe => {
-        const recipeIdPattern = `Recipe ID: ${recipe.id}`;
-        if (enhancedMessage.includes(recipeIdPattern)) {
+  const recipeIdPattern = `Recipe ID: ${recipe.id}`;
+  console.log('Looking for:', recipeIdPattern);
+  
+  if (enhancedMessage.includes(recipeIdPattern)) {
           const replacement = `Recipe ID: ${recipe.id}
 - Recipe name: **${recipe.name}**
 - Recipe link: <a href="${recipe.url}" target="_blank" style="color: #2E5FF3; text-decoration: underline;">${recipe.url}</a>`;
-          enhancedMessage = enhancedMessage.replace(recipeIdPattern, replacement);
-        }
-      });
-      setMessages(prev => [...prev, { role: 'assistant', content: enhancedMessage }]);
+    enhancedMessage = enhancedMessage.replace(recipeIdPattern, replacement);
+  }
+});
+setMessages(prev => [...prev, { role: 'assistant', content: enhancedMessage }]);
 
       if (userMessage.toLowerCase().includes('yes') || userMessage.toLowerCase().includes('approve')) {
         // Extract recipe IDs from the AI's response
