@@ -111,7 +111,47 @@ MEAL [number]
 - Needed ingredients:
   • [ingredients for recipe AND ingredients for any suggested added components]
 
-Focus on making every meal satisfying and complete!`;
+Focus on making every meal satisfying and complete!
+
+CALENDAR WORKFLOW:
+After the user approves a meal plan, ask them:
+"Would you like me to create a calendar for these meals? Please provide 3 specific dates (e.g., January 15, January 17, January 20)"
+
+When they provide dates, PREVIEW the calendar events first:
+"Here's what I'll add to your calendar:
+
+EVENT 1: [Date] 6:30-7:30 PM
+Title: [Recipe Name + any added components]
+Description: 
+- Cook time: X minutes
+- Key ingredients: [bullet list of main ingredients, no stock items]
+
+EVENT 2: [Date] 6:30-7:30 PM
+..." 
+
+Ask for confirmation: "Does this look right? Say 'create calendar' and I'll generate the ICS file."
+
+ICS FILE FORMAT:
+When user says "create calendar", generate this exact format:
+
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Mama's Menu Maker//EN
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+UID:meal-1-{timestamp}@meal-planner
+DTSTART:{YYYYMMDD}T183000Z
+DTEND:{YYYYMMDD}T193000Z
+SUMMARY:{Recipe Name + any added components}
+DESCRIPTION:Cook time: {X} minutes\\nKey ingredients:\\n• {ingredient1}\\n• {ingredient2}
+URL:{recipe URL if available}
+END:VEVENT
+BEGIN:VEVENT
+...repeat for each meal...
+END:VEVENT
+END:VCALENDAR
+
+Tell user: "Copy this text and save it as 'meals.ics' to import into your calendar."`;
 
       const response = await fetch('http://localhost:3001/api/chat', {
         method: 'POST',
@@ -138,21 +178,49 @@ Focus on making every meal satisfying and complete!`;
 
       const assistantMessage = data.content[0].text;
 
-      // Auto-inject recipe URLs and names by matching recipe IDs in the message
-      let enhancedMessage = assistantMessage;
+// Auto-inject recipe URLs and names by matching recipe IDs in the message
+let enhancedMessage = assistantMessage;
+console.log('🔍 Starting recipe ID replacement...');
 
-      // Look for "Recipe ID: [id]" pattern and replace with user-friendly format
-      recipes.forEach(recipe => {
-  const recipeIdPattern = `Recipe ID: ${recipe.id}`;
-  console.log('Looking for:', recipeIdPattern);
+recipes.forEach(recipe => {
+  // Try exact match first
+  const exactPattern = `Recipe ID: ${recipe.id}`;
   
-  if (enhancedMessage.includes(recipeIdPattern)) {
-          const replacement = `Recipe ID: ${recipe.id}
-- Recipe name: **${recipe.name}**
-- Recipe link: <a href="${recipe.url}" target="_blank" style="color: #2E5FF3; text-decoration: underline;">${recipe.url}</a>`;
-    enhancedMessage = enhancedMessage.replace(recipeIdPattern, replacement);
+  if (enhancedMessage.includes(exactPattern)) {
+    console.log('✅ Exact match found:', recipe.name, '→', recipe.id);
+    const replacement = `**${recipe.name}** (${recipe.totalTime}m)
+📖 <a href="${recipe.url}" target="_blank" style="color: #2E5FF3; text-decoration: underline;">${recipe.url}</a>`;
+    enhancedMessage = enhancedMessage.replace(exactPattern, replacement);
+  } else {
+    // Check if recipe ID appears anywhere in the message (for debugging)
+    if (enhancedMessage.includes(recipe.id)) {
+      console.log('⚠️ Partial match found but pattern failed:', recipe.name, '→', recipe.id);
+      console.log('Expected pattern:', exactPattern);
+      console.log('Message contains:', enhancedMessage.substring(enhancedMessage.indexOf(recipe.id) - 20, enhancedMessage.indexOf(recipe.id) + recipe.id.length + 20));
+      
+      // Try fuzzy matching for slight variations
+      const fuzzyPattern = new RegExp(`Recipe ID:\\s*${recipe.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g');
+      if (fuzzyPattern.test(enhancedMessage)) {
+        console.log('✅ Fuzzy match worked for:', recipe.name);
+        const replacement = `**${recipe.name}** (${recipe.totalTime}m)
+📖 <a href="${recipe.url}" target="_blank" style="color: #2E5FF3; text-decoration: underline;">View Recipe</a>`;
+        enhancedMessage = enhancedMessage.replace(fuzzyPattern, replacement);
+      } else {
+        console.log('❌ Fuzzy match also failed for:', recipe.name);
+      }
+    }
   }
 });
+
+// Check for any remaining unmatched Recipe IDs
+const remainingIds = enhancedMessage.match(/Recipe ID: [^\n\r]+/g);
+if (remainingIds) {
+  console.log('❌ Unmatched Recipe IDs found:', remainingIds);
+  console.log('Available recipe IDs:', recipes.slice(0, 5).map(r => r.id)); // Show first 5 for comparison
+}
+
+// Fallback: Hide any remaining raw Recipe IDs that didn't get replaced
+enhancedMessage = enhancedMessage.replace(/Recipe ID: [^\n\r]+/g, '');
 setMessages(prev => [...prev, { role: 'assistant', content: enhancedMessage }]);
 
       if (userMessage.toLowerCase().includes('yes') || userMessage.toLowerCase().includes('approve')) {

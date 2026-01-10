@@ -21,7 +21,10 @@ body {
 
 /* Header */
 .app-header {
-  background: linear-gradient(135deg, #2E5FF3 0%, #4B7BFF 100%);
+/*  background: linear-gradient(135deg, #4a6fa5, #3a5998); /* Muted blue */
+  background: linear-gradient(135deg, #4a5568, #2d3748); /* Softer gray-blue */
+  /* or try: background: #2c5530; for a muted green */
+  /* or: background: #8b4513; for a warm brown */
   border-bottom: 3px solid #FF9D5C;
   padding: 24px;
   box-shadow: 0 2px 8px rgba(46, 95, 243, 0.15);
@@ -165,7 +168,7 @@ body {
 
 /* Input Container */
 .input-container {
-  background: #2E5FF3;
+  background: linear-gradient(135deg, #4a5568, #2d3748); /* Match header */
   border-top: 3px solid #FF9D5C;
   padding: 24px;
   box-shadow: 0 -2px 8px rgba(46, 95, 243, 0.15);
@@ -213,9 +216,9 @@ body {
 
 .send-button {
   padding: 14px 24px;
-  background: linear-gradient(135deg, #001A66, #1A3D99);
-  color: #FFFFFF;
-  border: none;
+  background: #e2e8f0;  /* Light gray background */
+  color: #2d3748;       /* Dark text */
+  border: 1px solid #cbd5e0;
   border-radius: 12px;
   font-size: 15px;
   font-weight: 700;
@@ -224,9 +227,9 @@ body {
   box-shadow: 0 2px 6px rgba(0, 26, 102, 0.3);
 }
 
-.send-button:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 3px 8px rgba(0, 26, 102, 0.4);
+.send-button.hover {
+  background: #cbd5e0;  /* Slightly darker on hover */
+  color: #1a202c;       /* Even darker text on hover */
 }
 
 .send-button:active:not(:disabled) {
@@ -234,8 +237,8 @@ body {
 }
 
 .send-button:disabled {
-  background-color: #CCCCCC;
-  cursor: not-allowed;
+  background: #f7fafc;  /* Very light when disabled */
+  color: #a0aec0;       /* Muted text when disabled */
 }
 
 .download-button {
