@@ -49,8 +49,24 @@ const MealPlannerChat = () => {
 
     try {
 // Shuffle recipes so different ones appear first
-const shuffledRecipes = [...recipes].sort(() => Math.random() - 0.5);
-console.log('Sending', shuffledRecipes.length, 'recipes to AI prompt');
+// Filter out desserts before AI sees them
+const dinnerRecipes = recipes.filter(recipe => {
+  const name = recipe.name.toLowerCase();
+  
+  // Only exclude clear desserts
+  const dessertPatterns = [
+    'cookie', 'cake', 'cupcake', 'brownie', 'pie', 'tart', 
+    'ice cream', 'dessert', 'frosting', 'icing', 'cinnamon roll'
+  ];
+  
+  return !dessertPatterns.some(pattern => name.includes(pattern));
+});
+
+console.log(`✅ Filtered out desserts: ${recipes.length} → ${dinnerRecipes.length} recipes`);
+
+// Shuffle the filtered recipes
+const shuffledRecipes = [...dinnerRecipes].sort(() => Math.random() - 0.5);
+console.log('Sending', shuffledRecipes.length, 'dinner recipes to AI prompt');
 
 const recipesContext = shuffledRecipes.map(r => 
   `ID: ${r.id} | ${r.name}: ${r.ingredients.join(', ')} (${r.totalTime}m total, ${r.notes})`
