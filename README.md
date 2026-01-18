@@ -1,6 +1,38 @@
-# Getting Started with Create React App
+# Meal Planner
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A React-based meal planner application that uses Ollama and Mistral for AI-powered meal suggestions.
+
+## Prerequisites
+
+Before getting started, make sure you have:
+
+1. **Ollama running** - The app requires Ollama to be running locally on `localhost:11434`
+   - Install Ollama from [ollama.ai](https://ollama.ai)
+   - Start the Ollama desktop app
+   - Pull the Mistral model: `ollama pull mistral` (run from terminal)
+
+2. **Node.js** - Required to run the development server and backend
+
+## Getting Started
+
+### 1. Start Ollama
+Make sure the Ollama desktop app is running before starting the app. It should be listening on `localhost:11434`.
+
+### 2. Start the Backend Server
+```bash
+node server.js
+```
+This runs the Express backend proxy on port 3001.
+
+### 3. Start the Frontend
+```bash
+npm start
+```
+Runs the app in development mode.\
+Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+
+The page will reload when you make changes.\
+You may also see any lint errors in the console.
 
 ## Available Scripts
 
@@ -8,11 +40,7 @@ In the project directory, you can run:
 
 ### `npm start`
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
-
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+Runs the React app in development mode (requires backend server running).
 
 ### `npm test`
 
