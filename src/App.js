@@ -482,11 +482,15 @@ if (remainingIds) {
   <div className="message message-assistant">
     <div className="message-bubble">
       <div className="loading-container">
-        <div className="loading-dots">
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
+        <video
+          className="loading-animation-video"
+          autoPlay
+          loop
+          muted
+          playsInline
+        >
+          <source src="/xiebob_a_warm_friendly_icon_for_an_app_called_Mamas_Menu_Make_527582d6-7d36-4405-9136-205bd0eacb3f_1.mp4" type="video/mp4" />
+        </video>
         {loadingStatus && (
           <div className="loading-status">
             {loadingStatus}
