@@ -13,7 +13,9 @@ const [loading, setLoading] = useState(false);
 const [loadingStatus, setLoadingStatus] = useState(''); // ADD THIS LINE
 const [recipes, setRecipes] = useState([]);
 const [selectedMeals, setSelectedMeals] = useState([]);
-  const messagesEndRef = useRef(null);
+const [pendingCalendar, setPendingCalendar] = useState(null); // ADD THIS LINE
+const [lastAssistantMessage, setLastAssistantMessage] = useState(null);
+const messagesEndRef = useRef(null);
 
   // Load recipes on mount
   useEffect(() => {
@@ -39,14 +41,161 @@ const [selectedMeals, setSelectedMeals] = useState([]);
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+const extractMealsFromMessage = (text) => {
+  const meals = [];
+  const mealBlocks = text.match(/MEAL \d[\s\S]*?(?=MEAL \d|$)/g) || [];
+  
+  mealBlocks.forEach(block => {
+    const nameMatch = block.match(/\*\*([^*]+)\*\*/);
+    const addMatch = block.match(/Add to complete meal:\s*([^\n]+)/);
+    
+    meals.push({
+      name: nameMatch ? nameMatch[1].trim() : 'Unknown meal',
+      addedComponents: addMatch ? addMatch[1].trim() : ''
+    });
+  });
+  
+  return meals.length > 0 ? meals : [];
+};
+
+const downloadICSFile = (icsContent) => {
+  const blob = new Blob([icsContent], { type: 'text/calendar' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'meals.ics';
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+const generateICS = (meals, dates) => {
+  let ics = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Mama's Menu Maker//EN
+CALSCALE:GREGORIAN`;
+
+  // Helper function goes INSIDE generateICS
+  const formatDate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}${month}${day}T${hours}${minutes}00`; // No Z = local time
+  };
+
+  // The forEach loop goes here
+  meals.forEach((meal, i) => {
+    const date = new Date(dates[i] + ' 6:30 PM');
+    const endDate = new Date(dates[i] + ' 7:30 PM');
+    
+    // Find the recipe object to get details
+    const recipeObj = recipes.find(r => r.name === meal.name);
+    const cookTime = recipeObj?.totalTime || 'Unknown';
+    const ingredients = recipeObj?.ingredients || [];
+    const recipeUrl = recipeObj?.url || '';
+    
+    // Create title with added components
+    const title = meal.addedComponents ? 
+      `${meal.name} + ${meal.addedComponents}` : 
+      meal.name;
+    
+    // Create description
+    const keyIngredients = ingredients.slice(0, 5);
+    const ingredientsList = keyIngredients.map(ing => `• ${ing}`).join('\\n');
+    const description = `Cook time: ${cookTime} minutes\\n\\nKey ingredients:\\n${ingredientsList}\\n\\nRecipe: ${recipeUrl}`;
+    
+    ics += `
+BEGIN:VEVENT
+UID:meal-${i}-${Date.now()}@meal-planner
+DTSTART:${formatDate(date)}
+DTEND:${formatDate(endDate)}
+SUMMARY:${title}
+DESCRIPTION:${description}
+URL:${recipeUrl}
+END:VEVENT`;
+  });
+
+  ics += '\nEND:VCALENDAR';
+  return ics;
+};
+
+const generateCalendarFromMessage = (userMessage) => {
+  
+  const dates = parseDatesFromMessage(userMessage);
+  const meals = extractMealsFromMessage(lastAssistantMessage?.content || '');
+  
+  if (dates.length === 0 || meals.length === 0) {
+setMessages(prev => [...prev, { 
+  role: 'assistant', 
+  content: `Here's your calendar file content:\n\n\`\`\`\n${icsContent}\n\`\`\`\n\nClick the "📅 Download ICS File" button below to save it, or copy the text above and save as 'meals.ics'.` 
+}]);    return;
+  }
+
+  // Generate the actual ICS content
+  const icsContent = generateICS(meals, dates);
+  
+  setMessages(prev => [...prev, { 
+    role: 'assistant', 
+    content: `Here's your calendar file content. Copy this and save as 'meals.ics':\n\n\`\`\`\n${icsContent}\n\`\`\`\n\nOr say "download calendar" and I'll create a downloadable file.` 
+  }]);
+  
+  setPendingCalendar({ meals, dates, icsContent });
+console.log('Set pendingCalendar:', { meals, dates, icsContent }); // ADD THIS
+};
+
+
+const parseDatesFromMessage = (message) => {
+  // Extract dates like "jan 18, 19, 20" or "January 18, 19, and 20"
+  const dateMatches = message.match(/\b(jan|january)\s*(\d{1,2})(?:\s*,?\s*(?:and\s*)?(\d{1,2}))?(?:\s*,?\s*(?:and\s*)?(\d{1,2}))?/i);
+  
+  if (!dateMatches) return [];
+  
+  const month = dateMatches[1].toLowerCase().startsWith('jan') ? 'January' : dateMatches[1];
+  const dates = [dateMatches[2], dateMatches[3], dateMatches[4]].filter(Boolean);
+  
+  return dates.map(day => `${month} ${day}, 2026`);
+};
+
+  const downloadCalendar = () => {
+    if (!pendingCalendar) return;
+    const icsContent = generateICS(pendingCalendar.meals, pendingCalendar.dates);
+    downloadICSFile(icsContent);
+    setPendingCalendar(null);
+  };
+
 const sendMessage = async (e) => {
   e.preventDefault();
   if (!input.trim()) return;
 
-  const userMessage = input;
-  setInput('');
-  setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-  setLoading(true);
+const userMessage = input;
+setInput('');
+setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+
+// In your sendMessage function, add this check before the calendar detection:
+if (userMessage.toLowerCase().includes('create calendar') && pendingCalendar) {
+  // Generate and download ICS file
+  const icsContent = generateICS(pendingCalendar.meals, pendingCalendar.dates);
+  downloadICSFile(icsContent);
+  setPendingCalendar(null); // Clear pending state
+  
+  setMessages(prev => [...prev, { 
+    role: 'assistant', 
+    content: 'Calendar created! The ICS file should download automatically. You can import it into any calendar app.' 
+  }]);
+  return;
+}
+
+// Check if user is providing calendar dates
+const isCalendarRequest = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{1,2})\s*(\d{1,2}|january|february|march|april|may|june|july|august|september|october|november|december)/i.test(userMessage);
+
+if (isCalendarRequest) {
+  // Handle calendar generation with JavaScript instead of AI
+  generateCalendarFromMessage(userMessage);
+  return;
+}
+
+setLoading(true);
 
   try {
     setLoadingStatus('🍰 Filtering out desserts from recipe collection...');
@@ -238,7 +387,9 @@ if (remainingIds) {
 
 // Fallback: Hide any remaining raw Recipe IDs that didn't get replaced
     enhancedMessage = enhancedMessage.replace(/Recipe ID: [^\n\r]+/g, '');
-    setMessages(prev => [...prev, { role: 'assistant', content: enhancedMessage }]);
+    const assistantMsg = { role: 'assistant', content: enhancedMessage };
+    setMessages(prev => [...prev, assistantMsg]);
+    setLastAssistantMessage(assistantMsg);
 
       if (userMessage.toLowerCase().includes('yes') || userMessage.toLowerCase().includes('approve')) {
         // Extract recipe IDs from the AI's response
@@ -265,44 +416,6 @@ if (remainingIds) {
     setLoadingStatus('');
   }
 };
-
-
-  const downloadCalendar = () => {
-    const selectedRecipes = recipes.filter(r => 
-      selectedMeals.some(meal => r.name.toLowerCase().includes(meal.toLowerCase()))
-    );
-
-    if (selectedRecipes.length === 0) {
-      alert('No meals selected yet. Please discuss meal selections with the assistant first.');
-      return;
-    }
-
-    let ics = 'BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Meal Planner//EN\n';
-
-    selectedRecipes.forEach((meal, idx) => {
-      const date = new Date();
-      date.setDate(date.getDate() + (idx * 2));
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const dateStr = year + month + day;
-
-      const description = `Prep: ${meal.prepTime}m | Cook: ${meal.cookTime}m\n${meal.notes}\n\nIngredients: ${meal.ingredients.join(', ')}\n\nRecipe: ${meal.url}`;
-      const eventUid = `${meal.name.replace(/\s+/g, '-')}-${idx}@meal-planner`;
-
-      ics += `BEGIN:VEVENT\nUID:${eventUid}\nDTSTART:${dateStr}T180000\nDTEND:${dateStr}T190000\nSUMMARY:${meal.name}\nDESCRIPTION:${description}\nURL:${meal.url}\nEND:VEVENT\n`;
-    });
-
-    ics += 'END:VCALENDAR';
-
-    const blob = new Blob([ics], { type: 'text/calendar' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'meals.ics';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   return (
     <div className="app-container">
@@ -377,15 +490,27 @@ if (remainingIds) {
             </button>
           </form>
           
-          {selectedMeals.length > 0 && (
-            <button
-              onClick={downloadCalendar}
-              className="download-button"
-            >
-              📥 Download Calendar (ICS)
-            </button>
-          )}
-        </div>
+{selectedMeals.length > 0 && (
+  <button
+    onClick={downloadCalendar}
+    className="download-button"
+  >
+    📥 Download Calendar (ICS)
+  </button>
+)}
+
+{pendingCalendar && (
+  <button
+    onClick={() => {
+      downloadICSFile(pendingCalendar.icsContent);
+      setPendingCalendar(null); // Clear after download
+    }}
+    className="download-button"
+    style={{ marginTop: '8px' }}
+  >
+    📅 Download ICS File
+  </button>
+)}        </div>
       </div>
     </div>
   );
