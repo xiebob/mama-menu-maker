@@ -458,6 +458,8 @@ for (let i = 0; i < lines.length; i++) {
 
     // Use the recipe we already selected (by index)
     const recipe = selectedRecipes[mealNum - 1];
+    console.log(`Meal ${mealNum} selectedRecipes array:`, selectedRecipes);
+    console.log(`Looking for recipe at index ${mealNum - 1}:`, recipe);
     currentMeal = {
       mealNum: line,
       recipeId: recipe?.id,
@@ -488,8 +490,10 @@ if (currentMeal) meals.push(currentMeal);
 const finalMessage = [...otherLines];
 
 console.log('Processing meals:', meals.length);
+console.log('All meals data:', meals);
 meals.forEach((mealData, index) => {
-  console.log(`Meal ${index + 1}:`, mealData.recipeId, '→', mealData.recipe?.name);
+  console.log(`Meal ${index + 1} full data:`, mealData);
+  console.log(`Meal ${index + 1} recipe:`, mealData.recipe);
 
   if (index > 0) finalMessage.push(''); // Add spacing
 
