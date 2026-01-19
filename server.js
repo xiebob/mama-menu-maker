@@ -18,6 +18,7 @@ app.post('/api/chat', async (req, res) => {
       content: msg.content
     }));
 
+    // Enable streaming for better progress feedback
     const response = await fetch('http://localhost:11434/api/chat', {
       method: 'POST',
       headers: {
@@ -32,26 +33,73 @@ app.post('/api/chat', async (req, res) => {
           },
           ...conversationHistory
         ],
-        stream: false
+        stream: true // Enable streaming
       })
     });
 
-    const data = await response.json();
-    
-    // Convert Ollama response to Anthropic-like format for compatibility
-    const result = {
-      content: [
-        {
-          type: 'text',
-          text: data.message.content
-        }
-      ]
-    };
+    // Set headers for SSE (Server-Sent Events)
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
 
-    res.json(result);
+    let fullResponse = '';
+    let tokenCount = 0;
+    const startTime = Date.now();
+
+    // Stream the response
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        // Send final complete response
+        const result = {
+          content: [
+            {
+              type: 'text',
+              text: fullResponse
+            }
+          ],
+          done: true
+        };
+        res.write(`data: ${JSON.stringify(result)}\n\n`);
+        res.end();
+        break;
+      }
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n').filter(line => line.trim());
+
+      for (const line of lines) {
+        try {
+          const json = JSON.parse(line);
+
+          if (json.message && json.message.content) {
+            fullResponse += json.message.content;
+            tokenCount++;
+
+            // Send progress updates every 5 tokens
+            if (tokenCount % 5 === 0) {
+              const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+              res.write(`data: ${JSON.stringify({
+                type: 'progress',
+                tokens: tokenCount,
+                elapsed: elapsedSeconds,
+                preview: fullResponse.substring(0, 100)
+              })}\n\n`);
+            }
+          }
+        } catch (e) {
+          // Skip invalid JSON lines
+        }
+      }
+    }
   } catch (error) {
     console.error('Error:', error);
-    res.status(500).json({ error: error.message });
+    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    res.end();
   }
 });
 

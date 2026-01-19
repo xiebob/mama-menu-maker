@@ -221,7 +221,7 @@ setLoading(true);
     ).join('\n');
 
     setLoadingStatus('⏳ AI analyzing recipes and selecting 3 dinners...');
-    const systemPrompt = `You are a meal planning assistant. 
+    const systemPrompt = `You are a meal planning assistant.
 
 🧠 CONVERSATION CONTEXT:
 - If this is the first message, create a new 3-meal plan
@@ -232,14 +232,14 @@ setLoading(true);
 🍽️ COMPLETE MEAL RULES:
 Every dinner must have ALL THREE components:
 - PROTEIN (e.g. meat, tofu, beans, eggs, cheese)
-- VEGETABLES (fresh, cooked, roasted, or salad)  
+- VEGETABLES (fresh, cooked, roasted, or salad)
 - CARBS (e.g. rice, pasta, bread, potatoes, grains)
 
 If a recipe is missing components, ADD simple items to complete it:
 
 EXAMPLES:
 - "Basic Chard" (just vegetables) → Add "grilled chicken breast" + "rice"
-- "Tabouleh" (just grain) → Add "grilled chicken breast" 
+- "Tabouleh" (just grain) → Add "grilled chicken breast"
 - "Stir-fry" → Add "jasmine rice"
 - "Pasta" dish → Add "green salad" if no vegetables
 
@@ -266,7 +266,7 @@ Your responsibilities:
    - If you suggest "Steamed broccoli" side → MUST add "broccoli" to the To buy list
    - If you suggest "Grilled chicken breast" side → MUST add "chicken breast" to the To buy list
 7. List non-stock ingredients as BULLET POINTS
-   - For the "To buy" list, ONLY include non-stock ingredients. 
+   - For the "To buy" list, ONLY include non-stock ingredients.
    - REMOVE and DO NOT LIST common stock items even if they appear in the recipe, such as salt, pepper, oil, butter, water, garlic, onion, vinegar, soy sauce, sugar, flour, eggs, milk, spices)
 8. Format to report to user:
 MEAL [number]
@@ -287,12 +287,12 @@ When they provide dates, PREVIEW the calendar events first:
 
 EVENT 1: [Date] 6:30-7:30 PM
 Title: [Recipe Name + any added components]
-Description: 
+Description:
 - Cook time: X minutes
 - Key ingredients: [bullet list of main ingredients, no stock items]
 
 EVENT 2: [Date] 6:30-7:30 PM
-..." 
+..."
 
 Ask for confirmation: "Does this look right? Say 'create calendar' and I'll generate the ICS file."
 
@@ -318,6 +318,7 @@ END:VCALENDAR
 
 Tell user: "Copy this text and save it as 'meals.ics' to import into your calendar."`;
 
+    // Use EventSource for streaming responses
     const response = await fetch('http://localhost:3001/api/chat', {
       method: 'POST',
         headers: {
@@ -334,15 +335,44 @@ Tell user: "Copy this text and save it as 'meals.ics' to import into your calend
           systemPrompt: systemPrompt
         })
       });
-setLoadingStatus('🔗 Adding recipe links and finalizing meal plan...');
-    
-      const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error.message);
-      }
 
-      const assistantMessage = data.content[0].text;
+    // Handle streaming response
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let assistantMessage = '';
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = JSON.parse(line.substring(6));
+
+          if (data.type === 'progress') {
+            // Update status with progress info
+            setLoadingStatus(`⏳ AI generating meal plan... (${data.elapsed}s elapsed, ${data.tokens} tokens)`);
+          } else if (data.done) {
+            // Final response received
+            assistantMessage = data.content[0].text;
+          } else if (data.error) {
+            throw new Error(data.error);
+          }
+        }
+      }
+    }
+
+setLoadingStatus('🔗 Adding recipe links and finalizing meal plan...');
+
+      if (!assistantMessage) {
+        throw new Error('No response received from AI');
+      }
 
 // Auto-inject recipe URLs and names by matching recipe IDs in the message
 let enhancedMessage = assistantMessage;
