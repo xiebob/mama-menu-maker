@@ -484,49 +484,124 @@ setLoadingStatus('🔗 Adding recipe links and finalizing meal plan...');
         throw new Error('No response received from AI');
       }
 
-// Auto-inject recipe URLs and names by matching recipe IDs in the message
-let enhancedMessage = assistantMessage;
-console.log('🔍 Starting recipe ID replacement...');
+// Rebuild meals with correct data from recipes.json
+const stockItems = [
+  'salt', 'pepper', 'black pepper', 'white pepper', 'ground pepper',
+  'olive oil', 'vegetable oil', 'cooking oil', 'canola oil', 'butter',
+  'garlic', 'onion', 'onions',
+  'Italian seasoning', 'dried herbs', 'herbs', 'spices', 'bay leaf',
+  'vinegar', 'lemon juice', 'lime juice',
+  'dried minced garlic', 'dried minced onion', 'minced garlic', 'minced onion',
+  'red pepper flakes', 'crushed red pepper',
+  'soy sauce', 'worcestershire sauce', 'hot sauce',
+  'flour', 'sugar', 'brown sugar', 'baking soda', 'baking powder',
+  'eggs', 'milk', 'water'
+];
 
-    recipes.forEach(recipe => {
-  // Try exact match first
-      const exactPattern = `Recipe ID: ${recipe.id}`;
-  
-      if (enhancedMessage.includes(exactPattern)) {
-    console.log('✅ Exact match found:', recipe.name, '→', recipe.id);
-    const replacement = `**${recipe.name}** (${recipe.totalTime}m)
-📖 <a href="${recipe.url}" target="_blank" style="color: #2E5FF3; text-decoration: underline;">${recipe.url}</a>`;
-    enhancedMessage = enhancedMessage.replace(exactPattern, replacement);
-  } else {
-    // Check if recipe ID appears anywhere in the message (for debugging)
-    if (enhancedMessage.includes(recipe.id)) {
-      console.log('⚠️ Partial match found but pattern failed:', recipe.name, '→', recipe.id);
-      console.log('Expected pattern:', exactPattern);
-      console.log('Message contains:', enhancedMessage.substring(enhancedMessage.indexOf(recipe.id) - 20, enhancedMessage.indexOf(recipe.id) + recipe.id.length + 20));
-      
-      // Try fuzzy matching for slight variations
-      const fuzzyPattern = new RegExp(`Recipe ID:\\s*${recipe.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g');
-      if (fuzzyPattern.test(enhancedMessage)) {
-        console.log('✅ Fuzzy match worked for:', recipe.name);
-        const replacement = `**${recipe.name}** (${recipe.totalTime}m)
-📖 <a href="${recipe.url}" target="_blank" style="color: #2E5FF3; text-decoration: underline;">View Recipe</a>`;
-        enhancedMessage = enhancedMessage.replace(fuzzyPattern, replacement);
-      } else {
-        console.log('❌ Fuzzy match also failed for:', recipe.name);
-      }
-    }
-      }
-    });
+const sideIngredients = {
+  'tempeh': 'tempeh',
+  'tofu': 'firm tofu',
+  'baked tofu': 'firm tofu',
+  'chicken breast': 'chicken breast',
+  'grilled chicken': 'chicken breast',
+  'salmon': 'salmon fillet',
+  'rice': 'rice',
+  'basmati rice': 'basmati rice',
+  'jasmine rice': 'jasmine rice',
+  'quinoa': 'quinoa',
+  'broccoli': 'broccoli florets',
+  'roasted broccoli': 'broccoli florets',
+  'steamed broccoli': 'broccoli florets',
+  'chickpeas': 'canned chickpeas',
+  'black beans': 'canned black beans',
+  'crusty bread': 'crusty bread'
+};
 
-// Check for any remaining unmatched Recipe IDs
-const remainingIds = enhancedMessage.match(/Recipe ID: [^\n\r]+/g);
-if (remainingIds) {
-  console.log('❌ Unmatched Recipe IDs found:', remainingIds);
-  console.log('Available recipe IDs:', recipes.slice(0, 5).map(r => r.id)); // Show first 5 for comparison
+function isStockItem(ingredient) {
+  const lower = ingredient.toLowerCase();
+  return stockItems.some(stock => lower.includes(stock));
 }
 
-// Fallback: Hide any remaining raw Recipe IDs that didn't get replaced
-    enhancedMessage = enhancedMessage.replace(/Recipe ID: [^\n\r]+/g, '');
+function extractSideIngredients(sidesText) {
+  const ingredients = [];
+  Object.keys(sideIngredients).forEach(side => {
+    if (sidesText.toLowerCase().includes(side)) {
+      ingredients.push(sideIngredients[side]);
+    }
+  });
+  return ingredients;
+}
+
+// Parse meals and rebuild with recipe data
+const lines = assistantMessage.split('\n');
+let rebuiltMessage = [];
+let currentMeal = null;
+
+for (let i = 0; i < lines.length; i++) {
+  const line = lines[i];
+
+  if (line.match(/^MEAL \d+/)) {
+    if (currentMeal) rebuiltMessage.push(''); // Add spacing between meals
+    currentMeal = { mealNum: line, recipeId: null, addLine: null, recipe: null };
+    rebuiltMessage.push(line);
+  } else if (currentMeal && line.includes('Recipe ID:')) {
+    const match = line.match(/Recipe ID:\s*(.+?)(\s|$)/);
+    if (match) {
+      currentMeal.recipeId = match[1].trim();
+      currentMeal.recipe = recipes.find(r => r.id === currentMeal.recipeId);
+      if (currentMeal.recipe) {
+        rebuiltMessage.push(`- **${currentMeal.recipe.name}** (${currentMeal.recipe.totalTime}m)`);
+        rebuiltMessage.push(`📖 <a href="${currentMeal.recipe.url}" target="_blank" style="color: #2E5FF3; text-decoration: underline;">View Recipe</a>`);
+      }
+    }
+  } else if (currentMeal && line.includes('Cooking time:')) {
+    rebuiltMessage.push(line);
+  } else if (currentMeal && line.includes('Add to complete meal:')) {
+    currentMeal.addLine = line;
+    rebuiltMessage.push(line);
+  } else if (currentMeal && line.includes('Needed ingredients')) {
+    rebuiltMessage.push(line);
+
+    // Build shopping list from recipe + sides
+    const shoppingList = [];
+
+    // Add recipe ingredients (filtered)
+    if (currentMeal.recipe && currentMeal.recipe.ingredients) {
+      currentMeal.recipe.ingredients.forEach(ing => {
+        if (!isStockItem(ing)) {
+          shoppingList.push(ing);
+        }
+      });
+    }
+
+    // Add side ingredients
+    if (currentMeal.addLine) {
+      const sidesText = currentMeal.addLine.substring(currentMeal.addLine.indexOf(':') + 1);
+      const sides = extractSideIngredients(sidesText);
+      shoppingList.push(...sides);
+    }
+
+    // Output shopping list
+    shoppingList.forEach(item => {
+      rebuiltMessage.push(`  • ${item}`);
+    });
+
+    // Skip AI's ingredient list
+    i++;
+    while (i < lines.length && (lines[i].trim().startsWith('•') || lines[i].trim() === '')) {
+      i++;
+    }
+    i--; // Back up one since loop will increment
+  } else if (!currentMeal || !line.trim().startsWith('•')) {
+    // Keep non-ingredient lines
+    rebuiltMessage.push(line);
+  }
+}
+
+const cleanedMessage = rebuiltMessage.join('\n');
+
+// Recipe names and URLs already injected during rebuild
+let enhancedMessage = cleanedMessage;
     const assistantMsg = { role: 'assistant', content: enhancedMessage };
     setMessages(prev => [...prev, assistantMsg]);
     setLastAssistantMessage(assistantMsg);
