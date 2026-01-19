@@ -317,7 +317,7 @@ MEAL [number]
 - Recipe ID: [exact recipe ID from above]
 - Cooking time: X min
 - Add to complete meal: [only if needed - simple ingredient names like "rice" or "roasted broccoli"]
-- Needed ingredients (to BUY):
+- Shopping list:
   • [ingredient 1 - NO salt/pepper/oil/garlic/onion/spices]
   • [ingredient 2 - NO salt/pepper/oil/garlic/onion/spices]
   • [ingredient 3 - NO salt/pepper/oil/garlic/onion/spices]
@@ -334,7 +334,7 @@ MEAL 1
 - Recipe ID: escarole-and-beans
 - Cooking time: 25 min
 - Add to complete meal: rice
-- Needed ingredients (to BUY):
+- Shopping list:
   • bacon
   • escarole
   • chicken broth
@@ -471,8 +471,8 @@ for (let i = 0; i < lines.length; i++) {
     currentMeal.sides = line.substring(line.indexOf(':') + 1).trim();
   } else if (currentMeal && line.includes('Cooking time:')) {
     // Skip - we'll use recipe data
-  } else if (currentMeal && line.includes('Needed ingredients')) {
-    // Skip the "Needed ingredients" header - we'll rebuild from recipe data
+  } else if (currentMeal && (line.includes('Needed ingredients') || line.includes('Shopping list'))) {
+    // Skip the shopping list header - we'll rebuild from recipe data
   } else if (currentMeal && line.trim().startsWith('•')) {
     // Skip ingredient bullets - we'll rebuild from recipe data
   } else if (!currentMeal) {
@@ -506,11 +506,11 @@ meals.forEach((mealData, index) => {
 
     // Add to complete meal (if provided by AI)
     if (mealData.sides) {
-      finalMessage.push(`- Add to complete meal: ${mealData.sides}`);
+      finalMessage.push(`- Add to complete meal: **${mealData.sides}**`);
     }
 
     // Shopping list from recipes.json + sides
-    finalMessage.push('- Needed ingredients (to BUY):');
+    finalMessage.push('- Shopping list:');
 
     const shoppingList = [];
 
