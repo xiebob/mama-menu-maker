@@ -549,58 +549,108 @@ for (let i = 0; i < lines.length; i++) {
     if (match) {
       currentMeal.recipeId = match[1].trim();
       currentMeal.recipe = recipes.find(r => r.id === currentMeal.recipeId);
-      if (currentMeal.recipe) {
-        rebuiltMessage.push(`- **${currentMeal.recipe.name}** (${currentMeal.recipe.totalTime}m)`);
-        rebuiltMessage.push(`📖 <a href="${currentMeal.recipe.url}" target="_blank" style="color: #2E5FF3; text-decoration: underline;">View Recipe</a>`);
-      }
     }
   } else if (currentMeal && line.includes('Cooking time:')) {
-    rebuiltMessage.push(line);
+    // Skip - we'll use recipe data
   } else if (currentMeal && line.includes('Add to complete meal:')) {
     currentMeal.addLine = line;
-    rebuiltMessage.push(line);
   } else if (currentMeal && line.includes('Needed ingredients')) {
-    rebuiltMessage.push(line);
-
-    // Build shopping list from recipe + sides
-    const shoppingList = [];
-
-    // Add recipe ingredients (filtered)
-    if (currentMeal.recipe && currentMeal.recipe.ingredients) {
-      currentMeal.recipe.ingredients.forEach(ing => {
-        if (!isStockItem(ing)) {
-          shoppingList.push(ing);
-        }
-      });
-    }
-
-    // Add side ingredients
-    if (currentMeal.addLine) {
-      const sidesText = currentMeal.addLine.substring(currentMeal.addLine.indexOf(':') + 1);
-      const sides = extractSideIngredients(sidesText);
-      shoppingList.push(...sides);
-    }
-
-    // Output shopping list
-    shoppingList.forEach(item => {
-      rebuiltMessage.push(`  • ${item}`);
-    });
-
-    // Skip AI's ingredient list
+    // Skip - we'll rebuild from recipe data
+    // Skip AI's ingredient list too
     i++;
     while (i < lines.length && (lines[i].trim().startsWith('•') || lines[i].trim() === '')) {
       i++;
     }
     i--; // Back up one since loop will increment
   } else if (!currentMeal || !line.trim().startsWith('•')) {
-    // Keep non-ingredient lines
-    rebuiltMessage.push(line);
+    // Keep non-ingredient lines (like calendar requests, etc.)
+    if (!line.includes('Cooking time:') && !line.includes('Needed ingredients')) {
+      rebuiltMessage.push(line);
+    }
   }
 }
 
-const cleanedMessage = rebuiltMessage.join('\n');
+// Now rebuild each meal with complete data from recipes.json
+const finalMessage = [];
+let mealNumber = 0;
 
-// Recipe names and URLs already injected during rebuild
+for (let i = 0; i < rebuiltMessage.length; i++) {
+  const line = rebuiltMessage[i];
+
+  if (line.match(/^MEAL \d+/)) {
+    if (mealNumber > 0) finalMessage.push(''); // Add spacing
+    mealNumber++;
+
+    // Find this meal's data
+    const mealData = { recipeId: null, recipe: null, sides: null };
+
+    // Look ahead to find Recipe ID and sides
+    for (let j = i + 1; j < rebuiltMessage.length && j < i + 10; j++) {
+      if (rebuiltMessage[j].includes('Recipe ID:')) {
+        const match = rebuiltMessage[j].match(/Recipe ID:\s*(.+?)(\s|$)/);
+        if (match) {
+          mealData.recipeId = match[1].trim();
+          mealData.recipe = recipes.find(r => r.id === mealData.recipeId);
+        }
+      }
+      if (rebuiltMessage[j].includes('Add to complete meal:')) {
+        mealData.sides = rebuiltMessage[j].substring(rebuiltMessage[j].indexOf(':') + 1).trim();
+      }
+    }
+
+    // Build complete meal section
+    finalMessage.push(line); // MEAL X
+
+    if (mealData.recipe) {
+      // Recipe name and URL from recipes.json
+      finalMessage.push(`- **${mealData.recipe.name}** (${mealData.recipe.totalTime}m)`);
+      finalMessage.push(`📖 <a href="${mealData.recipe.url}" target="_blank" style="color: #2E5FF3; text-decoration: underline;">View Recipe</a>`);
+
+      // Cooking time from recipes.json
+      finalMessage.push(`- Cooking time: ${mealData.recipe.cookTime} min`);
+
+      // Add to complete meal (if provided by AI)
+      if (mealData.sides) {
+        finalMessage.push(`- Add to complete meal: ${mealData.sides}`);
+      }
+
+      // Shopping list from recipes.json + sides
+      finalMessage.push('- Needed ingredients (to BUY):');
+
+      const shoppingList = [];
+
+      // Add recipe ingredients (filtered)
+      if (mealData.recipe.ingredients) {
+        mealData.recipe.ingredients.forEach(ing => {
+          if (!isStockItem(ing)) {
+            shoppingList.push(ing);
+          }
+        });
+      }
+
+      // Add side ingredients
+      if (mealData.sides) {
+        const sideIngredients = extractSideIngredients(mealData.sides);
+        shoppingList.push(...sideIngredients);
+      }
+
+      // Output deduplicated shopping list
+      const uniqueList = [...new Set(shoppingList)];
+      uniqueList.forEach(item => {
+        finalMessage.push(`  • ${item}`);
+      });
+    }
+
+    // Continue to next line (meal is complete)
+  } else if (!line.match(/^MEAL \d+/) && !line.includes('Recipe ID:') && !line.includes('Add to complete meal:')) {
+    // Keep other lines (like calendar text, but not Recipe ID or sides which we already processed)
+    finalMessage.push(line);
+  }
+}
+
+const cleanedMessage = finalMessage.join('\n');
+
+// All data from recipes.json - no further processing needed
 let enhancedMessage = cleanedMessage;
     const assistantMsg = { role: 'assistant', content: enhancedMessage };
     setMessages(prev => [...prev, assistantMsg]);
