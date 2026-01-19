@@ -198,23 +198,30 @@ if (isCalendarRequest) {
 setLoading(true);
 
   try {
-    setLoadingStatus(`🎲 Shuffling ${recipes.length} recipes...`);
-    const shuffledRecipes = [...recipes].sort(() => Math.random() - 0.5);
+    setLoadingStatus(`🎲 Picking 3 random recipes from ${recipes.length} available...`);
 
-    setLoadingStatus(`🧠 Sending ${shuffledRecipes.length} recipes to AI for meal selection...`);
-    
-    const recipesContext = shuffledRecipes.map(r => 
-      `ID: ${r.id} | ${r.name}: ${r.ingredients.join(', ')} (${r.totalTime}m total, ${r.notes})`
-    ).join('\n');
+    // Shuffle and pick 3 random recipes
+    const shuffled = [...recipes].sort(() => Math.random() - 0.5);
+    const selectedRecipes = shuffled.slice(0, 3);
 
-    setLoadingStatus('⏳ AI analyzing recipes and selecting 3 dinners...');
-    const systemPrompt = `You are a meal planning assistant.
+    setLoadingStatus(`📋 Selected: ${selectedRecipes.map(r => r.name).join(', ')}`);
 
-🧠 CONVERSATION CONTEXT:
-- If this is the first message, create a new 3-meal plan
-- If I'm giving feedback on an existing plan, MODIFY that plan (don't start over!)
-- Examples of feedback: "swap meal 2", "replace the lasagna", "add more protein to meal 1"
-- When modifying, keep the meals I didn't ask to change
+    // Build context with ONLY the 3 selected recipes
+    const recipesContext = selectedRecipes.map((r, i) =>
+      `MEAL ${i + 1}: ${r.name}
+Ingredients: ${r.ingredients.join(', ')}
+Cook time: ${r.cookTime} min
+Total time: ${r.totalTime} min
+URL: ${r.url}
+Recipe ID: ${r.id}`
+    ).join('\n\n');
+
+    setLoadingStatus('🧠 AI analyzing ingredients and suggesting sides...');
+    const systemPrompt = `You are a meal planning assistant. I've already selected 3 random recipes for this week's dinners. Your job is to:
+
+1. ANALYZE each recipe's ingredients
+2. DETERMINE what's missing to make a complete meal
+3. SUGGEST simple sides to add
 
 🍽️ COMPLETE MEAL RULES - CRITICAL:
 Every dinner MUST have ALL THREE components:
@@ -223,7 +230,7 @@ Every dinner MUST have ALL THREE components:
 3. CARBS: rice, pasta, bread, potatoes, quinoa, couscous, grains
 
 ⚠️ ANALYZE EACH RECIPE'S INGREDIENTS CAREFULLY:
-Before selecting a recipe, CHECK what it contains:
+Check what it contains:
 - Look at the ingredient list to identify what's actually in the recipe
 - Determine what's MISSING (protein, vegetables, or carbs)
 - ADD simple sides to complete the meal
@@ -240,74 +247,21 @@ EXAMPLES OF ANALYSIS:
   → Has: vegetables (chard)
   → Missing: PROTEIN + CARBS
   → Add: "baked tofu + quinoa"
-  → Shopping list MUST include: firm tofu, quinoa (in addition to recipe ingredients)
 
 - "Escarole and Beans" ingredients: escarole, beans, bacon, garlic, broth
   → Has: vegetables (escarole), protein (beans + bacon)
   → Missing: CARBS
   → Add: "rice" OR "crusty bread"
-  → Shopping list MUST include: rice OR bread (in addition to recipe ingredients)
 
 - "Pasta Primavera" ingredients: pasta, mixed vegetables, parmesan
   → Has: carbs (pasta), vegetables (mixed veg), protein (parmesan cheese)
   → Missing: NOTHING - complete meal!
 
-- "Spinach and Orzo Salad" ingredients: orzo, spinach, goat cheese, pine nuts
-  → Has: carbs (orzo), vegetables (spinach), protein (goat cheese)
-  → Missing: NOTHING - complete meal!
-
-🥗 SALADS AS MAIN MEALS:
-Salads CAN be great main meals! But make sure they're substantial:
-- Check if they have protein, carbs, and vegetables
-- If missing components, add them (e.g., add crusty bread, or grilled chicken)
-- Examples: "Great Green Salad + quinoa", "Caesar Salad + grilled chicken"
-
-⚠️ DO NOT select:
-- Desserts (cookies, cakes, brownies, pies, sweet treats)
-
-✅ SIDES CAN BE SELECTED - Just pair them properly:
-- "Pico de Gallo" → pair with grilled chicken breast or cheese nachos + black beans
-- "Guacamole" → pair with cheese quesadillas or fish tacos
-- "Focaccia" or bread → pair with a protein and vegetables
-- Side recipes are GREAT - just make sure the complete meal has protein + vegetables + carbs
-
-EXAMPLES of using side recipes:
-- Recipe: "Pico de Gallo"
-  → Add to complete meal: "grilled chicken breast + rice + tortilla chips"
-  → This creates a complete dinner with the Pico as a component
-
-- Recipe: "Focaccia"
-  → Add to complete meal: "grilled salmon + roasted vegetables"
-  → Bread becomes the carb component of a complete meal
-
-✅ GOOD full dinner recipes (need fewer additions):
-- Pasta dishes (e.g., "Pad Kee Mao", "Pasta Primavera", "Lasagna")
-- Stir-fries with protein and vegetables
-- Curries and stews (e.g., "Chana Chardy Saag")
-- Hearty grain bowls or salads with protein
-- Fish or meat with vegetables and grains
-
-Here are all available recipes:
+Here are the 3 recipes I've selected:
 ${recipesContext}
 
-INSTRUCTIONS - READ CAREFULLY:
-- Each meal = EXACTLY ONE recipe from the list above (reference by the exact ID shown)
-- ⚠️ CRITICAL: You MUST copy recipe IDs EXACTLY from the list. DO NOT create new IDs or modify existing ones.
-- ⚠️ CRITICAL: Look for "ID: xxx" in the list above and copy the "xxx" part character-for-character.
-- BAD: "chickpea-curry" (not in list) ❌
-- GOOD: "moroccan-chickpea-stew" (actual ID from list) ✅
-- BAD: "vegetable-stir-fry" (not in list) ❌
-- GOOD: "bok-choy-shiitake-tofu-stir-fry" (actual ID from list) ✅
-- Do NOT suggest desserts, breakfasts, or side dishes as main meals
-- Do NOT suggest multiple recipes per meal
-- Each meal has: ONE recipe ID from the list, recipe name, cooking time, and shopping list
-
 Your responsibilities:
-1. Plan 3 DINNER meals per week ONLY (exclude: desserts, breakfasts, appetizers)
-2. For EACH meal, pick ONE recipe from the list that is appropriate for dinner
-3. NO MORE than 2 meals per week contain meat (beef, pork, lamb, chicken, fish)
-4. At least 1 meal must be vegetarian
-5. ANALYZE each recipe's ingredients and ADD ONLY what's missing:
+1. ANALYZE each recipe's ingredients and ADD ONLY what's missing:
    - Missing PROTEIN? → Add: tofu, tempeh, beans, chickpeas, eggs, or meat (VARY the proteins!)
    - Missing VEGETABLES? → Add: roasted broccoli, steamed green beans, side salad, sautéed spinach
    - Missing CARBS? → Add: rice, quinoa, couscous, roasted potatoes, crusty bread
@@ -317,9 +271,7 @@ Your responsibilities:
    - If recipe has protein (chicken, tofu, beans, cheese, etc.) → DO NOT add more protein
    - If recipe has carbs (pasta, rice, orzo, bread, etc.) → DO NOT add more carbs
 
-   BAD example: "Spinach and Orzo Salad" already has spinach (veg) + orzo (carbs) + cheese (protein)
-   → DO NOT add "roasted broccoli" - it already has vegetables! ❌
-6. 🚨 CRITICAL - SHOPPING LIST MUST BE COMPLETE:
+2. 🚨 CRITICAL - SHOPPING LIST MUST BE COMPLETE:
    When you add sides, you MUST include those ingredients in the shopping list!
 
    CORRECT examples:
@@ -328,11 +280,7 @@ Your responsibilities:
    - Add "baked tofu" → Shopping list includes: firm tofu
    - Add "rice" → Shopping list includes: rice
 
-   WRONG examples (missing side ingredients):
-   - Add "roasted broccoli" but shopping list doesn't include broccoli ❌
-   - Add "quinoa" but shopping list doesn't include quinoa ❌
-
-7. 🚨 SHOPPING LIST - FILTER OUT STOCK ITEMS:
+3. 🚨 SHOPPING LIST - FILTER OUT STOCK ITEMS:
    The "Needed ingredients" list is for SHOPPING, not cooking. Only list what someone needs to BUY.
 
    ❌ NEVER INCLUDE these stock pantry items (people already have these):
@@ -356,7 +304,7 @@ Your responsibilities:
    ✅ Shopping list should be: bacon, escarole, chicken broth, cannellini beans, parmesan
    ❌ DO NOT include: olive oil, garlic, red pepper flakes (these are pantry staples)
 
-8. ⚠️ BEFORE WRITING EACH MEAL - FINAL REVIEW:
+4. ⚠️ BEFORE WRITING EACH MEAL - FINAL REVIEW:
    Go through your shopping list and DELETE any of these items:
    - salt, pepper, any spices, Italian seasoning, herbs, bay leaf
    - olive oil, vegetable oil, butter
@@ -364,29 +312,24 @@ Your responsibilities:
    - lemon juice, lime juice, vinegar
    - dried minced anything (garlic, onion)
 
-9. 🚨 REQUIRED FORMAT - Follow this EXACTLY:
+🚨 REQUIRED FORMAT - Follow this EXACTLY:
 MEAL [number]
-- Recipe ID: [exact recipe ID from the list - MUST be a single recipe ID, NOT sides]
+- Recipe ID: [exact recipe ID from above]
 - Cooking time: X min
-- Add to complete meal: [only if needed - simple ingredient names like "rice" or "roasted broccoli". NOT recipe IDs!]
+- Add to complete meal: [only if needed - simple ingredient names like "rice" or "roasted broccoli"]
 - Needed ingredients (to BUY):
   • [ingredient 1 - NO salt/pepper/oil/garlic/onion/spices]
   • [ingredient 2 - NO salt/pepper/oil/garlic/onion/spices]
   • [ingredient 3 - NO salt/pepper/oil/garlic/onion/spices]
 
 FORMATTING RULES:
-- Recipe ID = ONE recipe from the list (e.g., "escarole-and-beans")
-- Add to complete meal = simple ingredients to add (e.g., "rice" or "crusty bread"), NOT recipe IDs
-- DO NOT combine multiple recipe IDs or create new IDs
-- DO NOT use comments like /* Broccoli */ or section headers
+- Recipe ID = The exact ID from above (already provided to you)
+- Add to complete meal = simple ingredients to add (e.g., "rice" or "crusty bread")
 - FINAL CHECK: Remove salt, pepper, oil, butter, garlic, onion, vinegar, lemon/lime juice, spices, dried seasonings
 - Use simple bullet points (•) only
 - List ingredients as a flat list, not grouped by sections
-- Always include the Recipe ID line
 
-CORRECT FORMAT EXAMPLES:
-
-Example 1 (Complete recipe with one addition):
+EXAMPLE:
 MEAL 1
 - Recipe ID: escarole-and-beans
 - Cooking time: 25 min
@@ -398,20 +341,6 @@ MEAL 1
   • cannellini beans
   • parmesan cheese
   • rice
-
-Example 2 (Side recipe built into a meal):
-MEAL 2
-- Recipe ID: pico-de-gallo
-- Cooking time: 15 min
-- Add to complete meal: grilled chicken breast + cilantro lime rice + tortilla chips
-- Needed ingredients (to BUY):
-  • tomatoes
-  • lime
-  • cilantro
-  • jalapeño pepper
-  • chicken breast
-  • rice
-  • tortilla chips
 
 Focus on making every meal satisfying, complete, and VARIED in protein sources!
 
@@ -510,7 +439,7 @@ function extractSideIngredients(sidesText) {
   return ingredients;
 }
 
-// Parse meals and extract structure
+// Parse meals and extract structure from AI response
 const lines = assistantMessage.split('\n');
 console.log('Total lines in AI response:', lines.length);
 console.log('First 10 lines:', lines.slice(0, 10));
@@ -518,23 +447,26 @@ const meals = [];
 let currentMeal = null;
 const otherLines = [];
 
+// Match meals with selectedRecipes by order
 for (let i = 0; i < lines.length; i++) {
   const line = lines[i];
 
-  if (line.match(/^MEAL \d+/)) {
+  if (line.match(/^MEAL (\d+)/)) {
+    const mealNum = parseInt(line.match(/^MEAL (\d+)/)[1]);
     console.log('Found meal header at line', i, ':', line);
     if (currentMeal) meals.push(currentMeal);
-    currentMeal = { mealNum: line, recipeId: null, sides: null, recipe: null };
+
+    // Use the recipe we already selected (by index)
+    const recipe = selectedRecipes[mealNum - 1];
+    currentMeal = {
+      mealNum: line,
+      recipeId: recipe?.id,
+      sides: null,
+      recipe: recipe
+    };
+    console.log(`Meal ${mealNum} -> ${recipe?.name} (${recipe?.id})`);
   } else if (currentMeal && line.includes('Recipe ID:')) {
-    const match = line.match(/Recipe ID:\s*(.+?)(\s|$)/);
-    if (match) {
-      currentMeal.recipeId = match[1].trim();
-      currentMeal.recipe = recipes.find(r => r.id === currentMeal.recipeId);
-      console.log('Found recipe:', currentMeal.recipe?.name, 'for ID:', currentMeal.recipeId);
-      if (!currentMeal.recipe) {
-        console.warn('Recipe not found for ID:', currentMeal.recipeId);
-      }
-    }
+    // Skip - we already have the recipe from selectedRecipes
   } else if (currentMeal && line.includes('Add to complete meal:')) {
     currentMeal.sides = line.substring(line.indexOf(':') + 1).trim();
   } else if (currentMeal && line.includes('Cooking time:')) {
