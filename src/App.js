@@ -198,21 +198,8 @@ if (isCalendarRequest) {
 setLoading(true);
 
   try {
-    setLoadingStatus('🍰 Filtering out desserts from recipe collection...');
-    
-    // Filter desserts
-    const dinnerRecipes = recipes.filter(recipe => {
-      const name = recipe.name.toLowerCase();
-      const dessertPatterns = [
-        'cookie', 'cake', 'cupcake', 'brownie', 'pie', 'tart', 
-        'ice cream', 'dessert', 'frosting', 'icing', 'cinnamon roll'
-      ];
-      return !dessertPatterns.some(pattern => name.includes(pattern));
-    });
-
-    setLoadingStatus('🎲 Shuffling your dinner recipes...');
-    const shuffledRecipes = [...dinnerRecipes].sort(() => Math.random() - 0.5);
-    console.log(`✅ Filtered from ${recipes.length} to ${dinnerRecipes.length} recipes`);
+    setLoadingStatus(`🎲 Shuffling ${recipes.length} recipes...`);
+    const shuffledRecipes = [...recipes].sort(() => Math.random() - 0.5);
 
     setLoadingStatus(`🧠 Sending ${shuffledRecipes.length} recipes to AI for meal selection...`);
     
@@ -304,10 +291,16 @@ Here are all available recipes:
 ${recipesContext}
 
 INSTRUCTIONS - READ CAREFULLY:
-- Each meal = EXACTLY ONE recipe from the list (reference by ID)
+- Each meal = EXACTLY ONE recipe from the list above (reference by the exact ID shown)
+- ⚠️ CRITICAL: You MUST copy recipe IDs EXACTLY from the list. DO NOT create new IDs or modify existing ones.
+- ⚠️ CRITICAL: Look for "ID: xxx" in the list above and copy the "xxx" part character-for-character.
+- BAD: "chickpea-curry" (not in list) ❌
+- GOOD: "moroccan-chickpea-stew" (actual ID from list) ✅
+- BAD: "vegetable-stir-fry" (not in list) ❌
+- GOOD: "bok-choy-shiitake-tofu-stir-fry" (actual ID from list) ✅
 - Do NOT suggest desserts, breakfasts, or side dishes as main meals
 - Do NOT suggest multiple recipes per meal
-- Each meal has: ONE recipe ID, recipe name, cooking time, and shopping list
+- Each meal has: ONE recipe ID from the list, recipe name, cooking time, and shopping list
 
 Your responsibilities:
 1. Plan 3 DINNER meals per week ONLY (exclude: desserts, breakfasts, appetizers)
@@ -373,15 +366,18 @@ Your responsibilities:
 
 9. 🚨 REQUIRED FORMAT - Follow this EXACTLY:
 MEAL [number]
-- Recipe ID: [exact recipe ID from the list]
+- Recipe ID: [exact recipe ID from the list - MUST be a single recipe ID, NOT sides]
 - Cooking time: X min
-- Add to complete meal: [only if needed - e.g., "rice" or "roasted broccoli + quinoa"]
+- Add to complete meal: [only if needed - simple ingredient names like "rice" or "roasted broccoli". NOT recipe IDs!]
 - Needed ingredients (to BUY):
   • [ingredient 1 - NO salt/pepper/oil/garlic/onion/spices]
   • [ingredient 2 - NO salt/pepper/oil/garlic/onion/spices]
   • [ingredient 3 - NO salt/pepper/oil/garlic/onion/spices]
 
 FORMATTING RULES:
+- Recipe ID = ONE recipe from the list (e.g., "escarole-and-beans")
+- Add to complete meal = simple ingredients to add (e.g., "rice" or "crusty bread"), NOT recipe IDs
+- DO NOT combine multiple recipe IDs or create new IDs
 - DO NOT use comments like /* Broccoli */ or section headers
 - FINAL CHECK: Remove salt, pepper, oil, butter, garlic, onion, vinegar, lemon/lime juice, spices, dried seasonings
 - Use simple bullet points (•) only
@@ -485,19 +481,6 @@ setLoadingStatus('🔗 Adding recipe links and finalizing meal plan...');
       }
 
 // Rebuild meals with correct data from recipes.json
-const stockItems = [
-  'salt', 'pepper', 'black pepper', 'white pepper', 'ground pepper',
-  'olive oil', 'vegetable oil', 'cooking oil', 'canola oil', 'butter',
-  'garlic', 'onion', 'onions',
-  'Italian seasoning', 'dried herbs', 'herbs', 'spices', 'bay leaf',
-  'vinegar', 'lemon juice', 'lime juice',
-  'dried minced garlic', 'dried minced onion', 'minced garlic', 'minced onion',
-  'red pepper flakes', 'crushed red pepper',
-  'soy sauce', 'worcestershire sauce', 'hot sauce',
-  'flour', 'sugar', 'brown sugar', 'baking soda', 'baking powder',
-  'eggs', 'milk', 'water'
-];
-
 const sideIngredients = {
   'tempeh': 'tempeh',
   'tofu': 'firm tofu',
@@ -517,11 +500,6 @@ const sideIngredients = {
   'crusty bread': 'crusty bread'
 };
 
-function isStockItem(ingredient) {
-  const lower = ingredient.toLowerCase();
-  return stockItems.some(stock => lower.includes(stock));
-}
-
 function extractSideIngredients(sidesText) {
   const ingredients = [];
   Object.keys(sideIngredients).forEach(side => {
@@ -534,6 +512,8 @@ function extractSideIngredients(sidesText) {
 
 // Parse meals and extract structure
 const lines = assistantMessage.split('\n');
+console.log('Total lines in AI response:', lines.length);
+console.log('First 10 lines:', lines.slice(0, 10));
 const meals = [];
 let currentMeal = null;
 const otherLines = [];
@@ -542,6 +522,7 @@ for (let i = 0; i < lines.length; i++) {
   const line = lines[i];
 
   if (line.match(/^MEAL \d+/)) {
+    console.log('Found meal header at line', i, ':', line);
     if (currentMeal) meals.push(currentMeal);
     currentMeal = { mealNum: line, recipeId: null, sides: null, recipe: null };
   } else if (currentMeal && line.includes('Recipe ID:')) {
@@ -559,13 +540,9 @@ for (let i = 0; i < lines.length; i++) {
   } else if (currentMeal && line.includes('Cooking time:')) {
     // Skip - we'll use recipe data
   } else if (currentMeal && line.includes('Needed ingredients')) {
-    // Skip - we'll rebuild from recipe data
-    // Skip AI's ingredient list too
-    i++;
-    while (i < lines.length && (lines[i].trim().startsWith('•') || lines[i].trim() === '')) {
-      i++;
-    }
-    i--; // Back up one since loop will increment
+    // Skip the "Needed ingredients" header - we'll rebuild from recipe data
+  } else if (currentMeal && line.trim().startsWith('•')) {
+    // Skip ingredient bullets - we'll rebuild from recipe data
   } else if (!currentMeal) {
     // Lines before first meal (like intro text)
     otherLines.push(line);
@@ -578,7 +555,10 @@ if (currentMeal) meals.push(currentMeal);
 // Now rebuild each meal with complete data from recipes.json
 const finalMessage = [...otherLines];
 
+console.log('Processing meals:', meals.length);
 meals.forEach((mealData, index) => {
+  console.log(`Meal ${index + 1}:`, mealData.recipeId, '→', mealData.recipe?.name);
+
   if (index > 0) finalMessage.push(''); // Add spacing
 
   // Build complete meal section
@@ -602,12 +582,10 @@ meals.forEach((mealData, index) => {
 
     const shoppingList = [];
 
-    // Add recipe ingredients (filtered)
+    // Add recipe ingredients (already cleaned in recipes.json)
     if (mealData.recipe.ingredients) {
       mealData.recipe.ingredients.forEach(ing => {
-        if (!isStockItem(ing)) {
-          shoppingList.push(ing);
-        }
+        shoppingList.push(ing);
       });
     }
 
@@ -622,6 +600,12 @@ meals.forEach((mealData, index) => {
     uniqueList.forEach(item => {
       finalMessage.push(`  • ${item}`);
     });
+  } else {
+    // Recipe not found - show error
+    finalMessage.push(`⚠️ Recipe ID "${mealData.recipeId}" not found in database`);
+    if (mealData.sides) {
+      finalMessage.push(`- Add to complete meal: ${mealData.sides}`);
+    }
   }
 });
 
