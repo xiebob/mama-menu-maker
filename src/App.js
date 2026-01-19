@@ -343,12 +343,13 @@ Your responsibilities:
    The "Needed ingredients" list is for SHOPPING, not cooking. Only list what someone needs to BUY.
 
    ❌ NEVER INCLUDE these stock pantry items (people already have these):
-   - Seasonings: salt, pepper, spices, herbs, red pepper flakes
-   - Oils/fats: olive oil, vegetable oil, butter, cooking spray
-   - Basics: water, garlic, onion (assume people have these)
-   - Condiments: vinegar, soy sauce, Worcestershire sauce, hot sauce
-   - Baking basics: flour, sugar, brown sugar, baking soda, baking powder
-   - Dairy staples: eggs, milk
+   - ALL seasonings/spices: salt, pepper, Italian seasoning, dried herbs (thyme, basil, oregano), red pepper flakes, bay leaf
+   - ALL oils/fats: olive oil, vegetable oil, butter, cooking spray
+   - ALL aromatics: garlic (fresh or dried/minced), onion (fresh or dried/minced), bell pepper
+   - ALL condiments: vinegar (any type), lemon juice, lime juice, soy sauce, Worcestershire sauce, hot sauce
+   - ALL baking basics: flour, sugar, brown sugar, baking soda, baking powder
+   - ALL dairy staples: eggs, milk
+   - Ground pepper (black, white, any color)
 
    ✅ DO INCLUDE items people need to buy:
    - Fresh proteins: chicken breast, salmon, tofu, tempeh, ground beef
@@ -362,19 +363,27 @@ Your responsibilities:
    ✅ Shopping list should be: bacon, escarole, chicken broth, cannellini beans, parmesan
    ❌ DO NOT include: olive oil, garlic, red pepper flakes (these are pantry staples)
 
-8. 🚨 REQUIRED FORMAT - Follow this EXACTLY:
+8. ⚠️ BEFORE WRITING EACH MEAL - FINAL REVIEW:
+   Go through your shopping list and DELETE any of these items:
+   - salt, pepper, any spices, Italian seasoning, herbs, bay leaf
+   - olive oil, vegetable oil, butter
+   - garlic, onion, bell pepper (unless it's a main ingredient like stuffed peppers)
+   - lemon juice, lime juice, vinegar
+   - dried minced anything (garlic, onion)
+
+9. 🚨 REQUIRED FORMAT - Follow this EXACTLY:
 MEAL [number]
 - Recipe ID: [exact recipe ID from the list]
 - Cooking time: X min
 - Add to complete meal: [only if needed - e.g., "rice" or "roasted broccoli + quinoa"]
 - Needed ingredients (to BUY):
-  • [ingredient 1]
-  • [ingredient 2]
-  • [ingredient 3]
+  • [ingredient 1 - NO salt/pepper/oil/garlic/onion/spices]
+  • [ingredient 2 - NO salt/pepper/oil/garlic/onion/spices]
+  • [ingredient 3 - NO salt/pepper/oil/garlic/onion/spices]
 
 FORMATTING RULES:
 - DO NOT use comments like /* Broccoli */ or section headers
-- DO NOT include stock items (salt, pepper, oil, butter, garlic, onion, vinegar, spices)
+- FINAL CHECK: Remove salt, pepper, oil, butter, garlic, onion, vinegar, lemon/lime juice, spices, dried seasonings
 - Use simple bullet points (•) only
 - List ingredients as a flat list, not grouped by sections
 - Always include the Recipe ID line
