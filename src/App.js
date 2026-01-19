@@ -373,7 +373,7 @@ Your responsibilities:
 
 9. 🚨 REQUIRED FORMAT - Follow this EXACTLY:
 MEAL [number]
-- Recipe ID: [exact recipe ID from the list]
+- Recipe Name: [EXACT recipe name from the list - must match perfectly]
 - Cooking time: X min
 - Add to complete meal: [only if needed - e.g., "rice" or "roasted broccoli + quinoa"]
 - Needed ingredients (to BUY):
@@ -386,13 +386,13 @@ FORMATTING RULES:
 - FINAL CHECK: Remove salt, pepper, oil, butter, garlic, onion, vinegar, lemon/lime juice, spices, dried seasonings
 - Use simple bullet points (•) only
 - List ingredients as a flat list, not grouped by sections
-- Always include the Recipe ID line
+- Always include the Recipe Name line with the EXACT name from the list
 
 CORRECT FORMAT EXAMPLES:
 
 Example 1 (Complete recipe with one addition):
 MEAL 1
-- Recipe ID: escarole-and-beans
+- Recipe Name: Escarole and Beans
 - Cooking time: 25 min
 - Add to complete meal: rice
 - Needed ingredients (to BUY):
@@ -405,7 +405,7 @@ MEAL 1
 
 Example 2 (Side recipe built into a meal):
 MEAL 2
-- Recipe ID: pico-de-gallo
+- Recipe Name: Pico de Gallo
 - Cooking time: 15 min
 - Add to complete meal: grilled chicken breast + cilantro lime rice + tortilla chips
 - Needed ingredients (to BUY):
@@ -532,28 +532,32 @@ function extractSideIngredients(sidesText) {
   return ingredients;
 }
 
-// Parse meals and rebuild with recipe data
+// Parse meals and extract structure
 const lines = assistantMessage.split('\n');
-let rebuiltMessage = [];
+const meals = [];
 let currentMeal = null;
+const otherLines = [];
 
 for (let i = 0; i < lines.length; i++) {
   const line = lines[i];
 
   if (line.match(/^MEAL \d+/)) {
-    if (currentMeal) rebuiltMessage.push(''); // Add spacing between meals
-    currentMeal = { mealNum: line, recipeId: null, addLine: null, recipe: null };
-    rebuiltMessage.push(line);
-  } else if (currentMeal && line.includes('Recipe ID:')) {
-    const match = line.match(/Recipe ID:\s*(.+?)(\s|$)/);
+    if (currentMeal) meals.push(currentMeal);
+    currentMeal = { mealNum: line, recipeId: null, sides: null, recipe: null };
+  } else if (currentMeal && line.includes('Recipe Name:')) {
+    const match = line.match(/Recipe Name:\s*(.+)$/);
     if (match) {
-      currentMeal.recipeId = match[1].trim();
-      currentMeal.recipe = recipes.find(r => r.id === currentMeal.recipeId);
+      const recipeName = match[1].trim();
+      currentMeal.recipe = recipes.find(r => r.name === recipeName);
+      console.log('Found recipe:', currentMeal.recipe?.name, 'for name:', recipeName);
+      if (!currentMeal.recipe) {
+        console.warn('Recipe not found for name:', recipeName);
+      }
     }
+  } else if (currentMeal && line.includes('Add to complete meal:')) {
+    currentMeal.sides = line.substring(line.indexOf(':') + 1).trim();
   } else if (currentMeal && line.includes('Cooking time:')) {
     // Skip - we'll use recipe data
-  } else if (currentMeal && line.includes('Add to complete meal:')) {
-    currentMeal.addLine = line;
   } else if (currentMeal && line.includes('Needed ingredients')) {
     // Skip - we'll rebuild from recipe data
     // Skip AI's ingredient list too
@@ -562,91 +566,64 @@ for (let i = 0; i < lines.length; i++) {
       i++;
     }
     i--; // Back up one since loop will increment
-  } else if (!currentMeal || !line.trim().startsWith('•')) {
-    // Keep non-ingredient lines (like calendar requests, etc.)
-    if (!line.includes('Cooking time:') && !line.includes('Needed ingredients')) {
-      rebuiltMessage.push(line);
-    }
+  } else if (!currentMeal) {
+    // Lines before first meal (like intro text)
+    otherLines.push(line);
   }
 }
 
+// Don't forget the last meal
+if (currentMeal) meals.push(currentMeal);
+
 // Now rebuild each meal with complete data from recipes.json
-const finalMessage = [];
-let mealNumber = 0;
+const finalMessage = [...otherLines];
 
-for (let i = 0; i < rebuiltMessage.length; i++) {
-  const line = rebuiltMessage[i];
+meals.forEach((mealData, index) => {
+  if (index > 0) finalMessage.push(''); // Add spacing
 
-  if (line.match(/^MEAL \d+/)) {
-    if (mealNumber > 0) finalMessage.push(''); // Add spacing
-    mealNumber++;
+  // Build complete meal section
+  finalMessage.push(mealData.mealNum); // MEAL X
 
-    // Find this meal's data
-    const mealData = { recipeId: null, recipe: null, sides: null };
+  if (mealData.recipe) {
+    // Recipe name and URL from recipes.json
+    finalMessage.push(`- **${mealData.recipe.name}** (${mealData.recipe.totalTime}m)`);
+    finalMessage.push(`📖 <a href="${mealData.recipe.url}" target="_blank" style="color: #2E5FF3; text-decoration: underline;">View Recipe</a>`);
 
-    // Look ahead to find Recipe ID and sides
-    for (let j = i + 1; j < rebuiltMessage.length && j < i + 10; j++) {
-      if (rebuiltMessage[j].includes('Recipe ID:')) {
-        const match = rebuiltMessage[j].match(/Recipe ID:\s*(.+?)(\s|$)/);
-        if (match) {
-          mealData.recipeId = match[1].trim();
-          mealData.recipe = recipes.find(r => r.id === mealData.recipeId);
-        }
-      }
-      if (rebuiltMessage[j].includes('Add to complete meal:')) {
-        mealData.sides = rebuiltMessage[j].substring(rebuiltMessage[j].indexOf(':') + 1).trim();
-      }
+    // Cooking time from recipes.json
+    finalMessage.push(`- Cooking time: ${mealData.recipe.cookTime} min`);
+
+    // Add to complete meal (if provided by AI)
+    if (mealData.sides) {
+      finalMessage.push(`- Add to complete meal: ${mealData.sides}`);
     }
 
-    // Build complete meal section
-    finalMessage.push(line); // MEAL X
+    // Shopping list from recipes.json + sides
+    finalMessage.push('- Needed ingredients (to BUY):');
 
-    if (mealData.recipe) {
-      // Recipe name and URL from recipes.json
-      finalMessage.push(`- **${mealData.recipe.name}** (${mealData.recipe.totalTime}m)`);
-      finalMessage.push(`📖 <a href="${mealData.recipe.url}" target="_blank" style="color: #2E5FF3; text-decoration: underline;">View Recipe</a>`);
+    const shoppingList = [];
 
-      // Cooking time from recipes.json
-      finalMessage.push(`- Cooking time: ${mealData.recipe.cookTime} min`);
-
-      // Add to complete meal (if provided by AI)
-      if (mealData.sides) {
-        finalMessage.push(`- Add to complete meal: ${mealData.sides}`);
-      }
-
-      // Shopping list from recipes.json + sides
-      finalMessage.push('- Needed ingredients (to BUY):');
-
-      const shoppingList = [];
-
-      // Add recipe ingredients (filtered)
-      if (mealData.recipe.ingredients) {
-        mealData.recipe.ingredients.forEach(ing => {
-          if (!isStockItem(ing)) {
-            shoppingList.push(ing);
-          }
-        });
-      }
-
-      // Add side ingredients
-      if (mealData.sides) {
-        const sideIngredients = extractSideIngredients(mealData.sides);
-        shoppingList.push(...sideIngredients);
-      }
-
-      // Output deduplicated shopping list
-      const uniqueList = [...new Set(shoppingList)];
-      uniqueList.forEach(item => {
-        finalMessage.push(`  • ${item}`);
+    // Add recipe ingredients (filtered)
+    if (mealData.recipe.ingredients) {
+      mealData.recipe.ingredients.forEach(ing => {
+        if (!isStockItem(ing)) {
+          shoppingList.push(ing);
+        }
       });
     }
 
-    // Continue to next line (meal is complete)
-  } else if (!line.match(/^MEAL \d+/) && !line.includes('Recipe ID:') && !line.includes('Add to complete meal:')) {
-    // Keep other lines (like calendar text, but not Recipe ID or sides which we already processed)
-    finalMessage.push(line);
+    // Add side ingredients
+    if (mealData.sides) {
+      const sideIngredients = extractSideIngredients(mealData.sides);
+      shoppingList.push(...sideIngredients);
+    }
+
+    // Output deduplicated shopping list
+    const uniqueList = [...new Set(shoppingList)];
+    uniqueList.forEach(item => {
+      finalMessage.push(`  • ${item}`);
+    });
   }
-}
+});
 
 const cleanedMessage = finalMessage.join('\n');
 
@@ -657,15 +634,10 @@ let enhancedMessage = cleanedMessage;
     setLastAssistantMessage(assistantMsg);
 
       if (userMessage.toLowerCase().includes('yes') || userMessage.toLowerCase().includes('approve')) {
-        // Extract recipe IDs from the AI's response
-        const recipeIdMatches = assistantMessage.match(/Recipe ID: ([^\n\s]+)/g);
-        if (recipeIdMatches) {
-          const selectedRecipeIds = recipeIdMatches.map(m => m.replace('Recipe ID: ', '').trim());
-          // Convert IDs back to recipe names for calendar generation
-          const selectedRecipeNames = selectedRecipeIds.map(id => {
-            const recipe = recipes.find(r => r.id === id);
-            return recipe ? recipe.name : id;
-          }).filter(name => name);
+        // Extract recipe names from the AI's response
+        const recipeNameMatches = assistantMessage.match(/Recipe Name:\s*(.+)$/gm);
+        if (recipeNameMatches) {
+          const selectedRecipeNames = recipeNameMatches.map(m => m.replace('Recipe Name:', '').trim());
           setSelectedMeals(selectedRecipeNames);
           console.log('Selected meals:', selectedRecipeNames);
         }
@@ -705,7 +677,7 @@ let enhancedMessage = cleanedMessage;
   <div dangerouslySetInnerHTML={{
     __html: msg.content
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>') // Convert **text** to <strong>
-      .replace(/Recipe ID: ([^\n\s]+)/g, 'Recipe ID: <code>$1</code>') // Style recipe IDs
+      .replace(/Recipe Name: ([^\n]+)/g, 'Recipe Name: <strong>$1</strong>') // Style recipe names
   }} />
 ) : (
   msg.content

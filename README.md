@@ -34,6 +34,26 @@ Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
 The page will reload when you make changes.\
 You may also see any lint errors in the console.
 
+## Recipe Database
+
+The app uses a `recipes.json` file located in `/public/recipes.json` that contains all available recipes. This file is generated from Google Docs using a Google Apps Script.
+
+### Updating Recipes
+
+To update the recipe database:
+
+1. Open the [Recipe Index Generator](https://script.google.com/home/projects/13F0MNZZASxZkkeCF4zw8sIXlo6ZnUPMcA5rT4sshzG40AtGStlmjzWFY/edit) in Google Apps Script
+2. Click the Run button (▶️) to execute `Code.gs`
+3. The script will generate `recipes.json` in your Google Drive at:
+   ```
+   /Users/xie/Library/CloudStorage/GoogleDrive-xiebob@gmail.com/My Drive/Practical Life/food/meal-planner/public/recipes.json
+   ```
+4. Copy the file to your local project:
+   ```bash
+   cp "/Users/xie/Library/CloudStorage/GoogleDrive-xiebob@gmail.com/My Drive/Practical Life/food/meal-planner/public/recipes.json" ~/meal-planner/public/
+   ```
+5. Restart the app to use the updated recipes
+
 ## Available Scripts
 
 In the project directory, you can run:
