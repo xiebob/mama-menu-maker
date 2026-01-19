@@ -8,10 +8,11 @@ const MealPlannerChat = () => {
       content: 'Hi! I\'m Mama\'s Menu Maker. I\'m ready to plan your dinners! Are there any ingredients you want to use up?'
     }
   ]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [recipes, setRecipes] = useState([]);
-  const [selectedMeals, setSelectedMeals] = useState([]);
+const [input, setInput] = useState('');
+const [loading, setLoading] = useState(false);
+const [loadingStatus, setLoadingStatus] = useState(''); // ADD THIS LINE
+const [recipes, setRecipes] = useState([]);
+const [selectedMeals, setSelectedMeals] = useState([]);
   const messagesEndRef = useRef(null);
 
   // Load recipes on mount
@@ -38,41 +39,40 @@ const MealPlannerChat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = async (e) => {
-    e.preventDefault();
-    if (!input.trim()) return;
+const sendMessage = async (e) => {
+  e.preventDefault();
+  if (!input.trim()) return;
 
-    const userMessage = input;
-    setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-    setLoading(true);
+  const userMessage = input;
+  setInput('');
+  setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+  setLoading(true);
 
-    try {
-// Shuffle recipes so different ones appear first
-// Filter out desserts before AI sees them
-const dinnerRecipes = recipes.filter(recipe => {
-  const name = recipe.name.toLowerCase();
-  
-  // Only exclude clear desserts
-  const dessertPatterns = [
-    'cookie', 'cake', 'cupcake', 'brownie', 'pie', 'tart', 
-    'ice cream', 'dessert', 'frosting', 'icing', 'cinnamon roll'
-  ];
-  
-  return !dessertPatterns.some(pattern => name.includes(pattern));
-});
+  try {
+    setLoadingStatus('🍰 Filtering out desserts from recipe collection...');
+    
+    // Filter desserts
+    const dinnerRecipes = recipes.filter(recipe => {
+      const name = recipe.name.toLowerCase();
+      const dessertPatterns = [
+        'cookie', 'cake', 'cupcake', 'brownie', 'pie', 'tart', 
+        'ice cream', 'dessert', 'frosting', 'icing', 'cinnamon roll'
+      ];
+      return !dessertPatterns.some(pattern => name.includes(pattern));
+    });
 
-console.log(`✅ Filtered out desserts: ${recipes.length} → ${dinnerRecipes.length} recipes`);
+    setLoadingStatus('🎲 Shuffling your dinner recipes...');
+    const shuffledRecipes = [...dinnerRecipes].sort(() => Math.random() - 0.5);
+    console.log(`✅ Filtered from ${recipes.length} to ${dinnerRecipes.length} recipes`);
 
-// Shuffle the filtered recipes
-const shuffledRecipes = [...dinnerRecipes].sort(() => Math.random() - 0.5);
-console.log('Sending', shuffledRecipes.length, 'dinner recipes to AI prompt');
+    setLoadingStatus(`🧠 Sending ${shuffledRecipes.length} recipes to AI for meal selection...`);
+    
+    const recipesContext = shuffledRecipes.map(r => 
+      `ID: ${r.id} | ${r.name}: ${r.ingredients.join(', ')} (${r.totalTime}m total, ${r.notes})`
+    ).join('\n');
 
-const recipesContext = shuffledRecipes.map(r => 
-  `ID: ${r.id} | ${r.name}: ${r.ingredients.join(', ')} (${r.totalTime}m total, ${r.notes})`
-).join('\n');
-
-const systemPrompt = `You are a meal planning assistant. 
+    setLoadingStatus('⏳ AI analyzing recipes and selecting 3 dinners...');
+    const systemPrompt = `You are a meal planning assistant. 
 
 🧠 CONVERSATION CONTEXT:
 - If this is the first message, create a new 3-meal plan
@@ -169,8 +169,8 @@ END:VCALENDAR
 
 Tell user: "Copy this text and save it as 'meals.ics' to import into your calendar."`;
 
-      const response = await fetch('http://localhost:3001/api/chat', {
-        method: 'POST',
+    const response = await fetch('http://localhost:3001/api/chat', {
+      method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -185,7 +185,8 @@ Tell user: "Copy this text and save it as 'meals.ics' to import into your calend
           systemPrompt: systemPrompt
         })
       });
-
+setLoadingStatus('🔗 Adding recipe links and finalizing meal plan...');
+    
       const data = await response.json();
       
       if (data.error) {
@@ -198,11 +199,11 @@ Tell user: "Copy this text and save it as 'meals.ics' to import into your calend
 let enhancedMessage = assistantMessage;
 console.log('🔍 Starting recipe ID replacement...');
 
-recipes.forEach(recipe => {
+    recipes.forEach(recipe => {
   // Try exact match first
-  const exactPattern = `Recipe ID: ${recipe.id}`;
+      const exactPattern = `Recipe ID: ${recipe.id}`;
   
-  if (enhancedMessage.includes(exactPattern)) {
+      if (enhancedMessage.includes(exactPattern)) {
     console.log('✅ Exact match found:', recipe.name, '→', recipe.id);
     const replacement = `**${recipe.name}** (${recipe.totalTime}m)
 📖 <a href="${recipe.url}" target="_blank" style="color: #2E5FF3; text-decoration: underline;">${recipe.url}</a>`;
@@ -225,8 +226,8 @@ recipes.forEach(recipe => {
         console.log('❌ Fuzzy match also failed for:', recipe.name);
       }
     }
-  }
-});
+      }
+    });
 
 // Check for any remaining unmatched Recipe IDs
 const remainingIds = enhancedMessage.match(/Recipe ID: [^\n\r]+/g);
@@ -236,8 +237,8 @@ if (remainingIds) {
 }
 
 // Fallback: Hide any remaining raw Recipe IDs that didn't get replaced
-enhancedMessage = enhancedMessage.replace(/Recipe ID: [^\n\r]+/g, '');
-setMessages(prev => [...prev, { role: 'assistant', content: enhancedMessage }]);
+    enhancedMessage = enhancedMessage.replace(/Recipe ID: [^\n\r]+/g, '');
+    setMessages(prev => [...prev, { role: 'assistant', content: enhancedMessage }]);
 
       if (userMessage.toLowerCase().includes('yes') || userMessage.toLowerCase().includes('approve')) {
         // Extract recipe IDs from the AI's response
@@ -253,16 +254,18 @@ setMessages(prev => [...prev, { role: 'assistant', content: enhancedMessage }]);
           console.log('Selected meals:', selectedRecipeNames);
         }
       }
-    } catch (error) {
+  } catch (error) {
       console.error('API Error:', error);
-      setMessages(prev => [...prev, {
-        role: 'assistant',
+    setMessages(prev => [...prev, {
+      role: 'assistant', 
         content: `Sorry, I encountered an error: ${error.message}. Make sure the backend is running on port 3001.`
-      }]);
-    } finally {
-      setLoading(false);
-    }
-  };
+    }]);
+  } finally {
+    setLoading(false);
+    setLoadingStatus('');
+  }
+};
+
 
   const downloadCalendar = () => {
     const selectedRecipes = recipes.filter(r => 
@@ -332,17 +335,24 @@ setMessages(prev => [...prev, { role: 'assistant', content: enhancedMessage }]);
               </div>
             </div>
           ))}
-          {loading && (
-            <div className="message message-assistant">
-              <div className="message-bubble">
-                <div className="loading-dots">
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </div>
-              </div>
-            </div>
-          )}
+{loading && (
+  <div className="message message-assistant">
+    <div className="message-bubble">
+      <div className="loading-container">
+        <div className="loading-dots">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+        {loadingStatus && (
+          <div className="loading-status">
+            {loadingStatus}
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+)}
           <div ref={messagesEndRef} />
         </div>
       </div>
