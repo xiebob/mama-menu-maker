@@ -373,7 +373,7 @@ Your responsibilities:
 
 9. 🚨 REQUIRED FORMAT - Follow this EXACTLY:
 MEAL [number]
-- Recipe Name: [EXACT recipe name from the list - must match perfectly]
+- Recipe ID: [exact recipe ID from the list]
 - Cooking time: X min
 - Add to complete meal: [only if needed - e.g., "rice" or "roasted broccoli + quinoa"]
 - Needed ingredients (to BUY):
@@ -386,13 +386,13 @@ FORMATTING RULES:
 - FINAL CHECK: Remove salt, pepper, oil, butter, garlic, onion, vinegar, lemon/lime juice, spices, dried seasonings
 - Use simple bullet points (•) only
 - List ingredients as a flat list, not grouped by sections
-- Always include the Recipe Name line with the EXACT name from the list
+- Always include the Recipe ID line
 
 CORRECT FORMAT EXAMPLES:
 
 Example 1 (Complete recipe with one addition):
 MEAL 1
-- Recipe Name: Escarole and Beans
+- Recipe ID: escarole-and-beans
 - Cooking time: 25 min
 - Add to complete meal: rice
 - Needed ingredients (to BUY):
@@ -405,7 +405,7 @@ MEAL 1
 
 Example 2 (Side recipe built into a meal):
 MEAL 2
-- Recipe Name: Pico de Gallo
+- Recipe ID: pico-de-gallo
 - Cooking time: 15 min
 - Add to complete meal: grilled chicken breast + cilantro lime rice + tortilla chips
 - Needed ingredients (to BUY):
@@ -544,14 +544,14 @@ for (let i = 0; i < lines.length; i++) {
   if (line.match(/^MEAL \d+/)) {
     if (currentMeal) meals.push(currentMeal);
     currentMeal = { mealNum: line, recipeId: null, sides: null, recipe: null };
-  } else if (currentMeal && line.includes('Recipe Name:')) {
-    const match = line.match(/Recipe Name:\s*(.+)$/);
+  } else if (currentMeal && line.includes('Recipe ID:')) {
+    const match = line.match(/Recipe ID:\s*(.+?)(\s|$)/);
     if (match) {
-      const recipeName = match[1].trim();
-      currentMeal.recipe = recipes.find(r => r.name === recipeName);
-      console.log('Found recipe:', currentMeal.recipe?.name, 'for name:', recipeName);
+      currentMeal.recipeId = match[1].trim();
+      currentMeal.recipe = recipes.find(r => r.id === currentMeal.recipeId);
+      console.log('Found recipe:', currentMeal.recipe?.name, 'for ID:', currentMeal.recipeId);
       if (!currentMeal.recipe) {
-        console.warn('Recipe not found for name:', recipeName);
+        console.warn('Recipe not found for ID:', currentMeal.recipeId);
       }
     }
   } else if (currentMeal && line.includes('Add to complete meal:')) {
@@ -634,10 +634,15 @@ let enhancedMessage = cleanedMessage;
     setLastAssistantMessage(assistantMsg);
 
       if (userMessage.toLowerCase().includes('yes') || userMessage.toLowerCase().includes('approve')) {
-        // Extract recipe names from the AI's response
-        const recipeNameMatches = assistantMessage.match(/Recipe Name:\s*(.+)$/gm);
-        if (recipeNameMatches) {
-          const selectedRecipeNames = recipeNameMatches.map(m => m.replace('Recipe Name:', '').trim());
+        // Extract recipe IDs from the AI's response
+        const recipeIdMatches = assistantMessage.match(/Recipe ID:\s*([^\n\s]+)/g);
+        if (recipeIdMatches) {
+          const selectedRecipeIds = recipeIdMatches.map(m => m.replace('Recipe ID:', '').trim());
+          // Convert IDs back to recipe names for calendar generation
+          const selectedRecipeNames = selectedRecipeIds.map(id => {
+            const recipe = recipes.find(r => r.id === id);
+            return recipe ? recipe.name : id;
+          }).filter(name => name);
           setSelectedMeals(selectedRecipeNames);
           console.log('Selected meals:', selectedRecipeNames);
         }
@@ -677,7 +682,7 @@ let enhancedMessage = cleanedMessage;
   <div dangerouslySetInnerHTML={{
     __html: msg.content
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>') // Convert **text** to <strong>
-      .replace(/Recipe Name: ([^\n]+)/g, 'Recipe Name: <strong>$1</strong>') // Style recipe names
+      .replace(/Recipe ID: ([^\n\s]+)/g, 'Recipe ID: <code>$1</code>') // Style recipe IDs
   }} />
 ) : (
   msg.content
