@@ -20,6 +20,7 @@ export async function onRequestPost(context) {
         model: 'llama-3.3-70b-versatile',
         messages: groqMessages,
         stream: true,
+        max_tokens: 2048,
       })
     });
 

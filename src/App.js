@@ -530,8 +530,8 @@ const otherLines = [];
 for (let i = 0; i < lines.length; i++) {
   const line = lines[i];
 
-  if (line.match(/^\s*MEAL (\d+)/)) {
-    const mealNum = parseInt(line.match(/^\s*MEAL (\d+)/)[1]);
+  if (line.match(/^\s*MEAL\s*(\d+)/)) {
+    const mealNum = parseInt(line.match(/^\s*MEAL\s*(\d+)/)[1]);
     console.log('Found meal header at line', i, ':', line);
     if (currentMeal) meals.push(currentMeal);
 
