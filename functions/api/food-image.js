@@ -11,7 +11,7 @@ export async function onRequestGet(context) {
     }
 
     const res = await fetch(
-      `https://api.unsplash.com/photos/search?query=${encodeURIComponent(query)}&per_page=1&orientation=squarish`,
+      `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=1&orientation=squarish`,
       {
         headers: {
           'Authorization': `Client-ID ${context.env.UNSPLASH_ACCESS_KEY}`,
