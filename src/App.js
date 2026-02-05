@@ -322,7 +322,8 @@ DO NOT default to chicken breast for everything!
 
 ⚠️ VEGETABLES RULE - BE STRICT:
 Onions, garlic, and peppers used as base aromatics do NOT count as a vegetable component.
-A meal needs a real veggie: leafy greens, broccoli, carrots, green beans, a salad, roasted veggies, etc.
+A meal needs a real veggie: leafy greens, broccoli, carrots, green beans, tomatoes, a salad, roasted veggies, etc.
+Tomatoes ARE a vegetable for meal planning purposes — if a recipe features tomatoes as a main ingredient, it counts.
 If a recipe is a stew or sauce-based dish with only aromatics, it NEEDS a veggie side.
 
 ⚠️ PROTEIN RULE - BE PRACTICAL:
@@ -613,8 +614,15 @@ meals.forEach((mealData, index) => {
   finalMessage.push(mealData.mealNum); // MEAL X
 
   if (mealData.recipe) {
-    // Recipe name and URL from recipes.json
-    finalMessage.push(`- **${mealData.recipe.name}** (${mealData.recipe.totalTime}m)`);
+    // Recipe name + sides in title
+    const sidesIngredient = mealData.sides ? mealData.sides.split('—')[0].trim() : null;
+    const sidesReason = mealData.sides && mealData.sides.includes('—') ? mealData.sides.split('—')[1].trim() : null;
+    const isComplete = sidesIngredient && /^nothing needed/i.test(sidesIngredient);
+    const titleSuffix = (!isComplete && sidesIngredient) ? ` + ${sidesIngredient}` : '';
+    finalMessage.push(`- **${mealData.recipe.name}${titleSuffix}** (${mealData.recipe.totalTime}m)`);
+    if (sidesReason && !isComplete) {
+      finalMessage.push(`  *(${sidesReason})*`);
+    }
     if (foodImages[index]) {
       finalMessage.push(`<img src="${foodImages[index]}" alt="${mealData.recipe.name}" style="width: 150px; height: 150px; object-fit: cover; border-radius: 8px; margin: 4px 0;" />`);
     }
@@ -622,11 +630,6 @@ meals.forEach((mealData, index) => {
 
     // Cooking time from recipes.json
     finalMessage.push(`- Cooking time: ${mealData.recipe.cookTime} min`);
-
-    // Add to complete meal (if provided by AI)
-    if (mealData.sides) {
-      finalMessage.push(`- Add to complete meal: ${mealData.sides}`);
-    }
 
     // Shopping list from recipes.json + sides
     finalMessage.push('- Shopping list:');
