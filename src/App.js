@@ -326,8 +326,8 @@ A meal needs a real veggie: leafy greens, broccoli, carrots, green beans, a sala
 If a recipe is a stew or sauce-based dish with only aromatics, it NEEDS a veggie side.
 
 ⚠️ PROTEIN RULE - BE PRACTICAL:
-Cheese-heavy dishes (mac and cheese, lasagna, pizza) already have enough protein.
-Do NOT add chickpeas or beans to mac and cheese. Just add a veggie side.
+ANY dish where cheese or eggs are a main ingredient already has protein. This includes mac and cheese, lasagna, pizza, caprese salad, quiche, omelets, cheese-based soups, etc.
+Do NOT add tofu, beans, or meat to these dishes. Just add what's actually missing (usually a veggie or carb).
 
 EXAMPLES OF ANALYSIS:
 - "Basic Chard" ingredients: chard, onion, oil, vinegar
@@ -355,6 +355,12 @@ EXAMPLES OF ANALYSIS:
   → Missing: VEGETABLES only
   → Add: "steamed broccoli" or "side salad"
   → Do NOT add chickpeas or beans — cheese is enough protein
+
+- "Caprese Salad" ingredients: tomatoes, fresh mozzarella, basil, olive oil
+  → Has: vegetables (tomatoes), protein (mozzarella IS protein)
+  → Missing: CARBS only
+  → Add: "crusty bread" or "quinoa"
+  → Do NOT add tofu or meat — mozzarella is enough protein
 
 Here are the 3 recipes I've selected:
 ${recipesContext}
