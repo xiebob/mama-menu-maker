@@ -15,6 +15,7 @@ const [recipes, setRecipes] = useState([]);
 const [selectedMeals, setSelectedMeals] = useState([]);
 const [pendingCalendar, setPendingCalendar] = useState(null); // ADD THIS LINE
 const [lastAssistantMessage, setLastAssistantMessage] = useState(null);
+const [currentMealPlan, setCurrentMealPlan] = useState(null); // persists { selectedRecipes, meals }
 const messagesEndRef = useRef(null);
 
   // Load recipes on mount
@@ -121,27 +122,31 @@ END:VEVENT`;
 };
 
 const generateCalendarFromMessage = (userMessage) => {
-  
   const dates = parseDatesFromMessage(userMessage);
-  const meals = extractMealsFromMessage(lastAssistantMessage?.content || '');
-  
-  if (dates.length === 0 || meals.length === 0) {
-setMessages(prev => [...prev, { 
-  role: 'assistant', 
-  content: `Here's your calendar file content:\n\n\`\`\`\n${icsContent}\n\`\`\`\n\nClick the "📅 Download ICS File" button below to save it, or copy the text above and save as 'meals.ics'.` 
-}]);    return;
+
+  if (dates.length === 0 || !currentMealPlan) {
+    setMessages(prev => [...prev, {
+      role: 'assistant',
+      content: !currentMealPlan
+        ? `No meal plan yet! Hit Send to get one first.`
+        : `I need 3 dates to make a calendar. Try something like "Jan 10, 12, 14".`
+    }]);
+    return;
   }
 
-  // Generate the actual ICS content
+  // Build meals array from currentMealPlan for ICS generation
+  const meals = currentMealPlan.selectedRecipes.map((recipe, i) => ({
+    name: recipe.name,
+    addedComponents: currentMealPlan.meals[i]?.sides || ''
+  }));
+
   const icsContent = generateICS(meals, dates);
-  
-  setMessages(prev => [...prev, { 
-    role: 'assistant', 
-    content: `Here's your calendar file content. Copy this and save as 'meals.ics':\n\n\`\`\`\n${icsContent}\n\`\`\`\n\nOr say "download calendar" and I'll create a downloadable file.` 
-  }]);
-  
   setPendingCalendar({ meals, dates, icsContent });
-console.log('Set pendingCalendar:', { meals, dates, icsContent }); // ADD THIS
+
+  setMessages(prev => [...prev, {
+    role: 'assistant',
+    content: `Got it! Say "download calendar" and I'll save the ICS file for you.`
+  }]);
 };
 
 
@@ -195,10 +200,65 @@ if (isCalendarRequest) {
   return;
 }
 
+// Detect "calendar me" / "make a calendar" without dates → prompt for dates
+const isCalendarIntent = /\bcalendar\b/i.test(userMessage);
+if (isCalendarIntent && currentMealPlan) {
+  setMessages(prev => [...prev, {
+    role: 'assistant',
+    content: `Sure! What 3 dates should I put these meals on? (e.g. "Jan 10, 12, 14")`
+  }]);
+  return;
+}
+
+// Detect "swap meal N" or "new meal N" → re-roll just that one
+const swapMatch = userMessage.match(/\b(?:swap|change|new|replace)\s+meal\s*(\d)/i);
+if (swapMatch && currentMealPlan) {
+  const swapIndex = parseInt(swapMatch[1]) - 1;
+  if (swapIndex >= 0 && swapIndex < currentMealPlan.selectedRecipes.length) {
+    setLoading(true);
+    setLoadingStatus(`🔄 Swapping meal ${swapIndex + 1}...`);
+    try {
+      // Pick a new recipe that isn't already in the plan
+      const currentIds = currentMealPlan.selectedRecipes.map(r => r.id);
+      const pool = recipes.filter(r => !currentIds.includes(r.id));
+      const newRecipe = pool[Math.floor(Math.random() * pool.length)];
+      const newSelectedRecipes = [...currentMealPlan.selectedRecipes];
+      newSelectedRecipes[swapIndex] = newRecipe;
+      // Re-run AI with the updated recipe set
+      await runMealPlan(newSelectedRecipes, []);
+    } catch (error) {
+      console.error('Swap error:', error);
+      setMessages(prev => [...prev, { role: 'assistant', content: `Sorry, error swapping: ${error.message}` }]);
+    } finally {
+      setLoading(false);
+      setLoadingStatus('');
+    }
+    return;
+  }
+}
+
+// If a plan already exists and this isn't a "new"/"start over" request, treat as a tweak
+const isNewRequest = /\b(new|start over|again|redo|re-do|fresh)\b/i.test(userMessage) || !currentMealPlan;
+if (!isNewRequest && currentMealPlan) {
+  // Send to AI with the SAME recipes, letting it know what the user wants tweaked
+  setLoading(true);
+  setLoadingStatus('🧠 Tweaking your meal plan...');
+  try {
+    await runMealPlan(currentMealPlan.selectedRecipes, userMessage.split(/[,\/]|and\b/i).map(t => t.trim()).filter(t => t.length > 1));
+  } catch (error) {
+    console.error('Tweak error:', error);
+    setMessages(prev => [...prev, { role: 'assistant', content: `Sorry, error: ${error.message}` }]);
+  } finally {
+    setLoading(false);
+    setLoadingStatus('');
+  }
+  return;
+}
+
 setLoading(true);
 
   try {
-    // Parse user's spare ingredients to pass to AI as sides suggestions
+    // Fresh roll: parse user's spare ingredients
     const userTerms = userMessage.trim()
       ? userMessage.split(/[,\/]|and\b/i)
           .map(t => t.replace(/^[\s\-–—:]+|[\s\-–—:]+$/g, '').trim())
@@ -213,9 +273,21 @@ setLoading(true);
     }
     const selectedRecipes = shuffled.slice(0, 3);
 
-    setLoadingStatus(`🎲 Picking 3 random recipes from ${recipes.length} available...`);
+    setLoadingStatus(`🎲 Picked 3 random recipes...`);
+    await runMealPlan(selectedRecipes, userTerms);
+  } catch (error) {
+    console.error('API Error:', error);
+    setMessages(prev => [...prev, {
+      role: 'assistant',
+      content: `Sorry, I encountered an error: ${error.message}. Make sure the backend is running on port 3001.`
+    }]);
+  } finally {
+    setLoading(false);
+    setLoadingStatus('');
+  }
+};
 
-    // Build context with ONLY the 3 selected recipes
+  const runMealPlan = async (selectedRecipes, userTerms) => {
     const recipesContext = selectedRecipes.map((r, i) =>
       `MEAL ${i + 1}: ${r.name}
 Ingredients: ${r.ingredients.join(', ')}
@@ -251,6 +323,15 @@ When adding protein sides, VARY the proteins across meals:
 - Meal 3: tempeh OR pork OR firm tofu
 DO NOT default to chicken breast for everything!
 
+⚠️ VEGETABLES RULE - BE STRICT:
+Onions, garlic, and peppers used as base aromatics do NOT count as a vegetable component.
+A meal needs a real veggie: leafy greens, broccoli, carrots, green beans, a salad, roasted veggies, etc.
+If a recipe is a stew or sauce-based dish with only aromatics, it NEEDS a veggie side.
+
+⚠️ PROTEIN RULE - BE PRACTICAL:
+Cheese-heavy dishes (mac and cheese, lasagna, pizza) already have enough protein.
+Do NOT add chickpeas or beans to mac and cheese. Just add a veggie side.
+
 EXAMPLES OF ANALYSIS:
 - "Basic Chard" ingredients: chard, onion, oil, vinegar
   → Has: vegetables (chard)
@@ -265,6 +346,18 @@ EXAMPLES OF ANALYSIS:
 - "Pasta Primavera" ingredients: pasta, mixed vegetables, parmesan
   → Has: carbs (pasta), vegetables (mixed veg), protein (parmesan cheese)
   → Missing: NOTHING - complete meal!
+
+- "Hungarian Goulash" ingredients: beef, onion, paprika, egg noodles, broth
+  → Has: protein (beef), carbs (egg noodles)
+  → Onion is just an aromatic, does NOT count as vegetable
+  → Missing: VEGETABLES
+  → Add: "steamed green beans" OR "side salad"
+
+- "Mac and Cheese" ingredients: pasta, cheddar, gruyere, butter, milk
+  → Has: carbs (pasta), protein (cheese is plenty)
+  → Missing: VEGETABLES only
+  → Add: "steamed broccoli" or "side salad"
+  → Do NOT add chickpeas or beans — cheese is enough protein
 
 Here are the 3 recipes I've selected:
 ${recipesContext}
@@ -364,7 +457,7 @@ Step 4: Only when user provides dates, show the calendar preview
 Step 5: Wait for user to say "create calendar" before generating ICS format`;
 
     // Use EventSource for streaming responses
-    const response = await fetch('http://localhost:3001/api/chat', {
+    const response = await fetch('/api/chat', {
       method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -373,10 +466,7 @@ Step 5: Wait for user to say "create calendar" before generating ICS format`;
           messages: messages.map(msg => ({
             role: msg.role,
             content: msg.content
-          })).concat([{
-            role: 'user',
-            content: userMessage
-          }]),
+          })),
           systemPrompt: systemPrompt
         })
       });
@@ -557,37 +647,12 @@ meals.forEach((mealData, index) => {
 
 const cleanedMessage = finalMessage.join('\n');
 
-// All data from recipes.json - no further processing needed
-let enhancedMessage = cleanedMessage;
-    const assistantMsg = { role: 'assistant', content: enhancedMessage };
+    const assistantMsg = { role: 'assistant', content: cleanedMessage };
     setMessages(prev => [...prev, assistantMsg]);
     setLastAssistantMessage(assistantMsg);
+    setCurrentMealPlan({ selectedRecipes, meals });
+  };
 
-      if (userMessage.toLowerCase().includes('yes') || userMessage.toLowerCase().includes('approve')) {
-        // Extract recipe IDs from the AI's response
-        const recipeIdMatches = assistantMessage.match(/Recipe ID:\s*([^\n\s]+)/g);
-        if (recipeIdMatches) {
-          const selectedRecipeIds = recipeIdMatches.map(m => m.replace('Recipe ID:', '').trim());
-          // Convert IDs back to recipe names for calendar generation
-          const selectedRecipeNames = selectedRecipeIds.map(id => {
-            const recipe = recipes.find(r => r.id === id);
-            return recipe ? recipe.name : id;
-          }).filter(name => name);
-          setSelectedMeals(selectedRecipeNames);
-          console.log('Selected meals:', selectedRecipeNames);
-        }
-      }
-  } catch (error) {
-      console.error('API Error:', error);
-    setMessages(prev => [...prev, {
-      role: 'assistant', 
-        content: `Sorry, I encountered an error: ${error.message}. Make sure the backend is running on port 3001.`
-    }]);
-  } finally {
-    setLoading(false);
-    setLoadingStatus('');
-  }
-};
 
   return (
     <div className="app-container">
