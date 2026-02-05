@@ -5,7 +5,7 @@ const MealPlannerChat = () => {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: 'Hi! I\'m Mama\'s Menu Maker. I\'m ready to plan your dinners! List up to 3 ingredients you want to use up and I\'ll find the best recipe matches. Or just hit Send for a surprise!'
+      content: 'Hi! I\'m Mama\'s Menu Maker. I\'m ready to plan your dinners! Got any spare ingredients you want to use up as sides? List them, or just hit Send to get started!'
     }
   ]);
 const [input, setInput] = useState('');
@@ -198,46 +198,22 @@ if (isCalendarRequest) {
 setLoading(true);
 
   try {
-    // Extract ingredient terms from user message (split on commas, slashes, and "and")
-    const userTerms = userMessage
-      .split(/[,\/]|and\b/i)
-      .map(t => t.replace(/^[\s\-–—:]+|[\s\-–—:]+$/g, '').toLowerCase())
-      .filter(t => t.length > 1);
+    // Parse user's spare ingredients to pass to AI as sides suggestions
+    const userTerms = userMessage.trim()
+      ? userMessage.split(/[,\/]|and\b/i)
+          .map(t => t.replace(/^[\s\-–—:]+|[\s\-–—:]+$/g, '').trim())
+          .filter(t => t.length > 1)
+      : [];
 
-    if (userTerms.length > 3) {
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: `That's a lot of ingredients! Pick your top 3 to use up and I'll match recipes around those.`
-      }]);
-      setLoading(false);
-      return;
+    // Fisher-Yates shuffle for uniform randomness
+    const shuffled = [...recipes];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
+    const selectedRecipes = shuffled.slice(0, 3);
 
-    // Score each recipe by how many user terms appear in its name or ingredients
-    const scored = recipes.map(recipe => {
-      const searchable = (recipe.name + ' ' + recipe.ingredients.join(' ')).toLowerCase();
-      const matchCount = userTerms.filter(term => searchable.includes(term)).length;
-      return { recipe, matchCount };
-    });
-
-    // Separate into matching and non-matching, shuffle each group independently
-    const fisher = (arr) => {
-      const a = [...arr];
-      for (let i = a.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [a[i], a[j]] = [a[j], a[i]];
-      }
-      return a;
-    };
-
-    const matched = fisher(scored.filter(s => s.matchCount > 0).sort((a, b) => b.matchCount - a.matchCount));
-    const unmatched = fisher(scored.filter(s => s.matchCount === 0));
-    const pool = [...matched, ...unmatched];
-    const selectedRecipes = pool.slice(0, 3).map(s => s.recipe);
-
-    setLoadingStatus(matched.length > 0
-      ? `📋 Matched your ingredients: ${selectedRecipes.map(r => r.name).join(', ')}`
-      : `🎲 No ingredient matches — picking 3 random from ${recipes.length} available...`);
+    setLoadingStatus(`🎲 Picking 3 random recipes from ${recipes.length} available...`);
 
     // Build context with ONLY the 3 selected recipes
     const recipesContext = selectedRecipes.map((r, i) =>

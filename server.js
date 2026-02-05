@@ -6,38 +6,35 @@ const app = express();
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb' }));
 
 app.post('/api/chat', async (req, res) => {
   try {
     const { messages, systemPrompt } = req.body;
 
-    // Convert messages to Ollama format
-    const conversationHistory = messages.map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }));
+    const groqMessages = [
+      { role: 'system', content: systemPrompt },
+      ...messages.map(msg => ({ role: msg.role, content: msg.content }))
+    ];
 
-    // Enable streaming for better progress feedback
-    const response = await fetch('http://localhost:11434/api/chat', {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'mistral',
-        messages: [
-          {
-            role: 'system',
-            content: systemPrompt
-          },
-          ...conversationHistory
-        ],
-        stream: true // Enable streaming
+        model: 'llama-3.3-70b-versatile',
+        messages: groqMessages,
+        stream: true,
       })
     });
 
-    // Set headers for SSE (Server-Sent Events)
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Groq API error ${response.status}: ${errorText}`);
+    }
+
+    // SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -46,7 +43,6 @@ app.post('/api/chat', async (req, res) => {
     let tokenCount = 0;
     const startTime = Date.now();
 
-    // Stream the response
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
 
@@ -55,16 +51,10 @@ app.post('/api/chat', async (req, res) => {
 
       if (done) {
         // Send final complete response
-        const result = {
-          content: [
-            {
-              type: 'text',
-              text: fullResponse
-            }
-          ],
+        res.write(`data: ${JSON.stringify({
+          content: [{ type: 'text', text: fullResponse }],
           done: true
-        };
-        res.write(`data: ${JSON.stringify(result)}\n\n`);
+        })}\n\n`);
         res.end();
         break;
       }
@@ -73,11 +63,16 @@ app.post('/api/chat', async (req, res) => {
       const lines = chunk.split('\n').filter(line => line.trim());
 
       for (const line of lines) {
-        try {
-          const json = JSON.parse(line);
+        if (!line.startsWith('data: ')) continue;
+        const data = line.substring(6);
+        if (data === '[DONE]') continue;
 
-          if (json.message && json.message.content) {
-            fullResponse += json.message.content;
+        try {
+          const json = JSON.parse(data);
+          const content = json.choices?.[0]?.delta?.content;
+
+          if (content) {
+            fullResponse += content;
             tokenCount++;
 
             // Send progress updates every 5 tokens
@@ -106,5 +101,4 @@ app.post('/api/chat', async (req, res) => {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Backend proxy running on port ${PORT}`);
-  console.log(`Make sure Ollama is running on localhost:11434`);
 });
