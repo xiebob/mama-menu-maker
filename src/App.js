@@ -5,7 +5,7 @@ const MealPlannerChat = () => {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: 'Hi! I\'m Mama\'s Menu Maker. I\'m ready to plan your dinners! Got any spare ingredients you want to use up as sides? List them, or just hit Send to get started!'
+      content: 'Hi! I\'m Mama\'s Menu Maker. I\'m ready to plan your dinners! Got any spare ingredients you want to use up as sides? List them, or just type "go" to get started!'
     }
   ]);
 const [input, setInput] = useState('');
@@ -154,9 +154,8 @@ const parseDatesFromMessage = (message) => {
 
 const sendMessage = async (e) => {
   e.preventDefault();
-  if (!input.trim()) return;
 
-const userMessage = input;
+const userMessage = input.trim() || 'go';
 setInput('');
 setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
 
