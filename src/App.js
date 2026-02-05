@@ -416,7 +416,7 @@ Your responsibilities:
 MEAL [number]
 - Recipe ID: [exact recipe ID from above]
 - Cooking time: X min
-- Add to complete meal: [only if needed - simple ingredient names like "rice" or "roasted broccoli"]
+- Add to complete meal: [ONLY ingredient names, no explanations. e.g. "steamed broccoli" or "rice". If nothing needed, say "Nothing needed - already complete"]
 - Shopping list:
   • [ingredient 1 - NO salt/pepper/oil/garlic/onion/spices]
   • [ingredient 2 - NO salt/pepper/oil/garlic/onion/spices]
@@ -424,7 +424,7 @@ MEAL [number]
 
 FORMATTING RULES:
 - Recipe ID = The exact ID from above (already provided to you)
-- Add to complete meal = simple ingredients to add (e.g., "rice" or "crusty bread")
+- Add to complete meal = ingredient names ONLY, no explanations or reasoning (e.g., "rice" or "crusty bread")
 - FINAL CHECK: Remove salt, pepper, oil, butter, garlic, onion, vinegar, lemon/lime juice, spices, dried seasonings
 - Use simple bullet points (•) only
 - List ingredients as a flat list, not grouped by sections
@@ -619,7 +619,7 @@ meals.forEach((mealData, index) => {
 
     // Add to complete meal (if provided by AI)
     if (mealData.sides) {
-      finalMessage.push(`- Add to complete meal: **${mealData.sides}**`);
+      finalMessage.push(`- Add to complete meal: ${mealData.sides}`);
     }
 
     // Shopping list from recipes.json + sides
