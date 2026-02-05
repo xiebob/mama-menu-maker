@@ -416,7 +416,7 @@ Your responsibilities:
 MEAL [number]
 - Recipe ID: [exact recipe ID from above]
 - Cooking time: X min
-- Add to complete meal: [ONLY ingredient names, no explanations. e.g. "steamed broccoli" or "rice". If nothing needed, say "Nothing needed - already complete"]
+- Add to complete meal: [ingredients + ONE short reason, max 10 words. e.g. "steamed broccoli — needs a veggie" or "Nothing needed — already complete"]
 - Shopping list:
   • [ingredient 1 - NO salt/pepper/oil/garlic/onion/spices]
   • [ingredient 2 - NO salt/pepper/oil/garlic/onion/spices]
@@ -424,7 +424,7 @@ MEAL [number]
 
 FORMATTING RULES:
 - Recipe ID = The exact ID from above (already provided to you)
-- Add to complete meal = ingredient names ONLY, no explanations or reasoning (e.g., "rice" or "crusty bread")
+- Add to complete meal = ingredients + short reason, max 10 words total (e.g., "rice — needs carbs" or "Nothing needed — already complete")
 - FINAL CHECK: Remove salt, pepper, oil, butter, garlic, onion, vinegar, lemon/lime juice, spices, dried seasonings
 - Use simple bullet points (•) only
 - List ingredients as a flat list, not grouped by sections
@@ -433,7 +433,7 @@ EXAMPLE:
 MEAL 1
 - Recipe ID: escarole-and-beans
 - Cooking time: 25 min
-- Add to complete meal: rice
+- Add to complete meal: rice — needs carbs
 - Shopping list:
   • bacon
   • escarole
