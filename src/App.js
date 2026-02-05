@@ -610,7 +610,7 @@ meals.forEach((mealData, index) => {
     // Recipe name and URL from recipes.json
     finalMessage.push(`- **${mealData.recipe.name}** (${mealData.recipe.totalTime}m)`);
     if (foodImages[index]) {
-      finalMessage.push(`<img src="${foodImages[index]}" alt="${mealData.recipe.name}" style="width: 100%; max-width: 300px; border-radius: 8px; margin: 4px 0;" />`);
+      finalMessage.push(`<img src="${foodImages[index]}" alt="${mealData.recipe.name}" style="width: 150px; height: 150px; object-fit: cover; border-radius: 8px; margin: 4px 0;" />`);
     }
     finalMessage.push(`📖 <a href="${mealData.recipe.url}" target="_blank" style="color: #2E5FF3; text-decoration: underline;">View Recipe</a>`);
 
