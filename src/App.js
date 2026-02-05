@@ -583,10 +583,15 @@ if (currentMeal) meals.push(currentMeal);
 // Now rebuild each meal with complete data from recipes.json
 const finalMessage = [...otherLines];
 
-// Fetch a food image for each meal
-const foodImages = await Promise.all(meals.map(async () => {
+// Fetch og:image from each recipe's source URL
+const foodImages = await Promise.all(meals.map(async (mealData) => {
   try {
-    const res = await fetch('https://foodish-api.com/api/');
+    if (!mealData.recipe?.url) return null;
+    const res = await fetch('/api/og-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: mealData.recipe.url })
+    });
     const data = await res.json();
     return data.image || null;
   } catch (e) {
