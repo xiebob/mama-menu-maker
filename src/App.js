@@ -423,7 +423,7 @@ Your responsibilities:
 MEAL [number]
 - Recipe ID: [exact recipe ID from above]
 - Cooking time: X min
-- Add to complete meal: [ingredients + ONE short reason, max 10 words. e.g. "steamed broccoli — needs a veggie" or "Nothing needed — already complete"]
+- Add to complete meal: [ingredients needed, or "Nothing needed" if already complete]
 - Shopping list:
   • [ingredient 1 - NO salt/pepper/oil/garlic/onion/spices]
   • [ingredient 2 - NO salt/pepper/oil/garlic/onion/spices]
@@ -431,7 +431,7 @@ MEAL [number]
 
 FORMATTING RULES:
 - Recipe ID = The exact ID from above (already provided to you)
-- Add to complete meal = ingredients + short reason, max 10 words total (e.g., "rice — needs carbs" or "Nothing needed — already complete")
+- Add to complete meal = ingredients needed, or "Nothing needed" if already complete
 - FINAL CHECK: Remove salt, pepper, oil, butter, garlic, onion, vinegar, lemon/lime juice, spices, dried seasonings
 - Use simple bullet points (•) only
 - List ingredients as a flat list, not grouped by sections
@@ -440,7 +440,7 @@ EXAMPLE:
 MEAL 1
 - Recipe ID: escarole-and-beans
 - Cooking time: 25 min
-- Add to complete meal: rice — needs carbs
+- Add to complete meal: rice
 - Shopping list:
   • bacon
   • escarole
@@ -616,17 +616,17 @@ meals.forEach((mealData, index) => {
   if (mealData.recipe) {
     // Recipe name + sides in title
     const sidesIngredient = mealData.sides ? mealData.sides.split('—')[0].trim() : null;
-    const sidesReason = mealData.sides && mealData.sides.includes('—') ? mealData.sides.split('—')[1].trim() : null;
     const isComplete = sidesIngredient && /^nothing needed/i.test(sidesIngredient);
     const titleSuffix = (!isComplete && sidesIngredient) ? ` + ${sidesIngredient}` : '';
-    finalMessage.push(`- **${mealData.recipe.name}${titleSuffix}** (${mealData.recipe.totalTime}m)`);
-    if (sidesReason && !isComplete) {
-      finalMessage.push(`  *(${sidesReason})*`);
-    }
+    const titleText = `**${mealData.recipe.name}${titleSuffix}** (${mealData.recipe.totalTime}m)`;
+
     if (foodImages[index]) {
-      finalMessage.push(`<img src="${foodImages[index]}" alt="${mealData.recipe.name}" style="width: 150px; height: 150px; object-fit: cover; border-radius: 8px; margin: 4px 0;" />`);
+      // Image to the left of the title, flex row layout
+      finalMessage.push(`<div style="display:flex;align-items:flex-start;gap:12px;margin:4px 0;"><img src="${foodImages[index]}" alt="${mealData.recipe.name}" style="width:120px;height:120px;object-fit:cover;border-radius:8px;flex-shrink:0;" /><div><strong>${mealData.recipe.name}${titleSuffix}</strong> (${mealData.recipe.totalTime}m)<br/>📖 <a href="${mealData.recipe.url}" target="_blank" style="color:#2E5FF3;text-decoration:underline;">View Recipe</a></div></div>`);
+    } else {
+      finalMessage.push(`- ${titleText}`);
+      finalMessage.push(`📖 <a href="${mealData.recipe.url}" target="_blank" style="color: #2E5FF3; text-decoration: underline;">View Recipe</a>`);
     }
-    finalMessage.push(`📖 <a href="${mealData.recipe.url}" target="_blank" style="color: #2E5FF3; text-decoration: underline;">View Recipe</a>`);
 
     // Cooking time from recipes.json
     finalMessage.push(`- Cooking time: ${mealData.recipe.cookTime} min`);

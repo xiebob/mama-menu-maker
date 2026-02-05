@@ -47,7 +47,7 @@ export async function onRequestGet(context) {
     const simplified = simplifyQuery(query);
 
     const res = await fetch(
-      `https://api.unsplash.com/search/photos?query=${encodeURIComponent(simplified + ' recipe')}&per_page=3&orientation=squarish`,
+      `https://api.unsplash.com/search/photos?query=${encodeURIComponent(simplified)}&per_page=3&orientation=squarish`,
       {
         headers: {
           'Authorization': `Client-ID ${context.env.UNSPLASH_ACCESS_KEY}`,
@@ -80,7 +80,7 @@ export async function onRequestGet(context) {
       return new Response(JSON.stringify({
         original: query,
         simplified: simplified,
-        searchQuery: simplified + ' recipe',
+        searchQuery: simplified,
         picked: best,
         candidates: scored
       }), { headers: { 'Content-Type': 'application/json' } });
