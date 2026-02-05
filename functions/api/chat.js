@@ -42,12 +42,28 @@ export async function onRequestPost(context) {
     (async () => {
       let fullResponse = '';
       let tokenCount = 0;
+      let buffer = '';
       const startTime = Date.now();
 
       while (true) {
         const { done, value } = await groqReader.read();
 
         if (done) {
+          // Process any remaining buffer
+          if (buffer.trim()) {
+            const lines = buffer.split('\n');
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              const data = line.substring(6).trim();
+              if (data === '[DONE]') continue;
+              try {
+                const json = JSON.parse(data);
+                const content = json.choices?.[0]?.delta?.content;
+                if (content) fullResponse += content;
+              } catch (e) {}
+            }
+          }
+
           await writer.write(new TextEncoder().encode(
             `data: ${JSON.stringify({
               content: [{ type: 'text', text: fullResponse }],
@@ -58,12 +74,13 @@ export async function onRequestPost(context) {
           break;
         }
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(line => line.trim());
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // Keep the last (possibly incomplete) line in the buffer
 
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
-          const data = line.substring(6);
+          const data = line.substring(6).trim();
           if (data === '[DONE]') continue;
 
           try {
