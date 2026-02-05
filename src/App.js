@@ -134,14 +134,29 @@ const generateCalendarFromMessage = (userMessage) => {
 
 
 const parseDatesFromMessage = (message) => {
-  // Extract dates like "jan 18, 19, 20" or "January 18, 19, and 20"
-  const dateMatches = message.match(/\b(jan|january)\s*(\d{1,2})(?:\s*,?\s*(?:and\s*)?(\d{1,2}))?(?:\s*,?\s*(?:and\s*)?(\d{1,2}))?/i);
-  
+  const monthMap = {
+    jan: 'January', january: 'January',
+    feb: 'February', february: 'February',
+    mar: 'March', march: 'March',
+    apr: 'April', april: 'April',
+    may: 'May',
+    jun: 'June', june: 'June',
+    jul: 'July', july: 'July',
+    aug: 'August', august: 'August',
+    sep: 'September', september: 'September',
+    oct: 'October', october: 'October',
+    nov: 'November', november: 'November',
+    dec: 'December', december: 'December',
+  };
+
+  // Match month followed by up to 3 numbers separated by commas/and
+  const dateMatches = message.match(/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*(\d{1,2})(?:\s*,?\s*(?:and\s*)?(\d{1,2}))?(?:\s*,?\s*(?:and\s*)?(\d{1,2}))?/i);
+
   if (!dateMatches) return [];
-  
-  const month = dateMatches[1].toLowerCase().startsWith('jan') ? 'January' : dateMatches[1];
+
+  const month = monthMap[dateMatches[1].toLowerCase()] || dateMatches[1];
   const dates = [dateMatches[2], dateMatches[3], dateMatches[4]].filter(Boolean);
-  
+
   return dates.map(day => `${month} ${day}, 2026`);
 };
 
