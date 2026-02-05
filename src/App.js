@@ -12,9 +12,9 @@ const [input, setInput] = useState('');
 const [loading, setLoading] = useState(false);
 const [loadingStatus, setLoadingStatus] = useState(''); // ADD THIS LINE
 const [recipes, setRecipes] = useState([]);
-const [selectedMeals, setSelectedMeals] = useState([]);
+const [selectedMeals] = useState([]);
 const [pendingCalendar, setPendingCalendar] = useState(null); // ADD THIS LINE
-const [lastAssistantMessage, setLastAssistantMessage] = useState(null);
+const [, setLastAssistantMessage] = useState(null);
 const [currentMealPlan, setCurrentMealPlan] = useState(null); // persists { selectedRecipes, meals }
 const messagesEndRef = useRef(null);
 
@@ -41,23 +41,6 @@ const messagesEndRef = useRef(null);
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-const extractMealsFromMessage = (text) => {
-  const meals = [];
-  const mealBlocks = text.match(/MEAL \d[\s\S]*?(?=MEAL \d|$)/g) || [];
-  
-  mealBlocks.forEach(block => {
-    const nameMatch = block.match(/\*\*([^*]+)\*\*/);
-    const addMatch = block.match(/Add to complete meal:\s*([^\n]+)/);
-    
-    meals.push({
-      name: nameMatch ? nameMatch[1].trim() : 'Unknown meal',
-      addedComponents: addMatch ? addMatch[1].trim() : ''
-    });
-  });
-  
-  return meals.length > 0 ? meals : [];
-};
 
 const downloadICSFile = (icsContent) => {
   const blob = new Blob([icsContent], { type: 'text/calendar' });
@@ -244,7 +227,7 @@ if (!isNewRequest && currentMealPlan) {
   setLoading(true);
   setLoadingStatus('🧠 Tweaking your meal plan...');
   try {
-    await runMealPlan(currentMealPlan.selectedRecipes, userMessage.split(/[,\/]|and\b/i).map(t => t.trim()).filter(t => t.length > 1));
+    await runMealPlan(currentMealPlan.selectedRecipes, userMessage.split(/[,/]|and\b/i).map(t => t.trim()).filter(t => t.length > 1));
   } catch (error) {
     console.error('Tweak error:', error);
     setMessages(prev => [...prev, { role: 'assistant', content: `Sorry, error: ${error.message}` }]);
@@ -260,7 +243,7 @@ setLoading(true);
   try {
     // Fresh roll: parse user's spare ingredients
     const userTerms = userMessage.trim()
-      ? userMessage.split(/[,\/]|and\b/i)
+      ? userMessage.split(/[,/]|and\b/i)
           .map(t => t.replace(/^[\s\-–—:]+|[\s\-–—:]+$/g, '').trim())
           .filter(t => t.length > 1)
       : [];
