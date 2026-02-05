@@ -4,7 +4,8 @@
 
 export async function onRequestGet(context) {
   try {
-    const query = context.url.searchParams.get('q');
+    const url = new URL(context.request.url);
+    const query = url.searchParams.get('q');
     if (!query) {
       return new Response(JSON.stringify({ error: 'No query provided' }), { status: 400 });
     }
