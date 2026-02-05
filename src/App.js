@@ -645,6 +645,12 @@ const cleanedMessage = finalMessage.join('\n');
     setMessages(prev => [...prev, assistantMsg]);
     setLastAssistantMessage(assistantMsg);
     setCurrentMealPlan({ selectedRecipes, meals });
+
+    // Prompt user with next steps
+    setMessages(prev => [...prev, {
+      role: 'assistant',
+      content: `What would you like to do?\n• **Calendar** — give me 3 dates (e.g. "feb 5, 6, 7") and I'll make an ICS file\n• **Swap** — say "swap meal 1" (or 2 or 3) to re-roll one\n• **New** — say "new" to pick 3 fresh recipes`
+    }]);
   };
 
 
