@@ -583,6 +583,18 @@ if (currentMeal) meals.push(currentMeal);
 // Now rebuild each meal with complete data from recipes.json
 const finalMessage = [...otherLines];
 
+// Fetch Unsplash images for each meal in parallel
+const foodImages = await Promise.all(meals.map(async (mealData) => {
+  try {
+    if (!mealData.recipe?.name) return null;
+    const res = await fetch(`/api/food-image?q=${encodeURIComponent(mealData.recipe.name)}`);
+    const data = await res.json();
+    return data.image || null;
+  } catch (e) {
+    return null;
+  }
+}));
+
 console.log('Processing meals:', meals.length);
 console.log('All meals data:', meals);
 meals.forEach((mealData, index) => {
@@ -597,6 +609,9 @@ meals.forEach((mealData, index) => {
   if (mealData.recipe) {
     // Recipe name and URL from recipes.json
     finalMessage.push(`- **${mealData.recipe.name}** (${mealData.recipe.totalTime}m)`);
+    if (foodImages[index]) {
+      finalMessage.push(`<img src="${foodImages[index]}" alt="${mealData.recipe.name}" style="width: 100%; max-width: 300px; border-radius: 8px; margin: 4px 0;" />`);
+    }
     finalMessage.push(`📖 <a href="${mealData.recipe.url}" target="_blank" style="color: #2E5FF3; text-decoration: underline;">View Recipe</a>`);
 
     // Cooking time from recipes.json
