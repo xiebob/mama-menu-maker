@@ -7,7 +7,7 @@ redirects = []
 [functions."*"]
 
 [build]
-publish = "/Users/xie/Library/CloudStorage/GoogleDrive-xiebob@gmail.com/My Drive/Practical Life/food/meal-planner/build"
+publish = "/Users/xie/Library/CloudStorage/GoogleDrive-xiebob@gmail.com/My Drive/Practical Life/food/mama-menu-maker/build"
 publishOrigin = "ui"
 commandOrigin = "ui"
 command = "npm run build"
