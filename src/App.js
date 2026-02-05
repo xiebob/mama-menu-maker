@@ -446,10 +446,7 @@ Step 5: Wait for user to say "create calendar" before generating ICS format`;
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: messages.map(msg => ({
-            role: msg.role,
-            content: msg.content
-          })),
+          messages: [{ role: 'user', content: 'Please analyze these recipes and create the meal plan.' }],
           systemPrompt: systemPrompt
         })
       });
